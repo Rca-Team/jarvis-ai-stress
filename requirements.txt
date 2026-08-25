@@ -1,0 +1,14 @@
+flask>=3.0.0
+google-genai>=0.1.0
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+pillow>=10.0.0
+pyttsx3>=2.90
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.13
+eel>=0.16.0
+pyautogui>=0.9.54
+pywhatkit>=5.4
+requests>=2.31.0
+playsound==1.2.2
+numpy>=1.24.0
