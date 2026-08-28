@@ -230,5 +230,11 @@ def stress_video_feed():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
+    try:
+        from engine.features import start_background_listeners
+        start_background_listeners()
+    except Exception as bg_err:
+        print(f"Notice: background listeners could not start: {bg_err}")
     print(f"Starting Jarvis Server on http://localhost:8000 ...")
     app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+

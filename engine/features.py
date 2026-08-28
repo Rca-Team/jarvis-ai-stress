@@ -191,47 +191,113 @@ import ctypes
 from ctypes import wintypes
 import threading
 
-def trigger_hotword_activation():
-    """Trigger Jarvis assistant listening when hotword is detected."""
-    print("[Hotword]: Activation triggered! Starting assistant listener...")
-    try:
-        playAssistantSound()
-    except Exception:
-        pass
+_assistant_busy_lock = threading.Lock()
+_is_assistant_listening = False
+_last_activation_time = 0.0
 
+def focus_jarvis_window():
+    """Bring the Jarvis application window to foreground if minimized or backgrounded."""
     try:
-        eel.startListening()()
-    except Exception:
-        pass
+        user32 = ctypes.windll.user32
+        def enum_window_callback(hwnd, extra):
+            if user32.IsWindowVisible(hwnd):
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buff = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buff, length + 1)
+                    title = buff.value.lower()
+                    if "jarvis" in title or "localhost:8000" in title:
+                        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                        user32.SetForegroundWindow(hwnd)
+                        return False
+            return True
 
-    try:
-        from engine.command import allCommands
-        threading.Thread(target=allCommands, kwargs={"message": 1}, daemon=True).start()
+        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
+        user32.EnumWindows(WNDENUMPROC(enum_window_callback), 0)
     except Exception as e:
-        print(f"Error executing allCommands from hotword: {e}")
+        pass
 
 def trigger_hotkey_activation():
     """Instant real-time trigger for Jarvis when global hotkey is pressed."""
-    print("[Global Hotkey]: Instant hotkey activated! Starting assistant listener...")
-    try:
-        playAssistantSound()
-    except Exception:
-        pass
+    global _is_assistant_listening, _last_activation_time
+    curr_time = time.time()
+    if curr_time - _last_activation_time < 0.9:
+        print("[Global Hotkey]: Debounced duplicate hotkey trigger.")
+        return
+    _last_activation_time = curr_time
 
-    try:
-        eel.startListening()()
-    except Exception:
-        pass
+    if _assistant_busy_lock.locked():
+        print("[Global Hotkey]: Assistant is currently busy handling a request.")
+        return
 
+    def _run_activation():
+        if not _assistant_busy_lock.acquire(blocking=False):
+            return
+        global _is_assistant_listening
+        _is_assistant_listening = True
+        try:
+            print("[Global Hotkey]: Instant hotkey activated! Starting assistant listener...")
+            focus_jarvis_window()
+            try:
+                playAssistantSound()
+            except Exception:
+                pass
+
+            try:
+                eel.showListeningWave()()
+            except Exception:
+                try:
+                    eel.showListeningWave()
+                except Exception:
+                    pass
+
+            from engine.command import allCommands
+            allCommands(message=1)
+        except Exception as e:
+            print(f"Error executing allCommands from hotkey: {e}")
+        finally:
+            _is_assistant_listening = False
+            try:
+                _assistant_busy_lock.release()
+            except Exception:
+                pass
+
+    threading.Thread(target=_run_activation, daemon=True).start()
+
+@eel.expose
+def trigger_hotkey_from_ui():
+    """Allow UI keybindings to trigger the unified hotkey activation workflow."""
+    trigger_hotkey_activation()
+
+def trigger_hotword_activation():
+    """Trigger Jarvis assistant listening when hotword is detected."""
+    trigger_hotkey_activation()
+
+def setup_keyboard_hooks():
+    """Setup ultra-low latency system-wide global hotkeys using keyboard hook."""
     try:
-        from engine.command import allCommands
-        threading.Thread(target=allCommands, kwargs={"message": 1}, daemon=True).start()
-    except Exception as e:
-        print(f"Error executing allCommands from hotkey: {e}")
+        import keyboard
+        hotkeys = [
+            'ctrl+j',
+            'alt+j',
+            'ctrl+space',
+            'ctrl+alt+j',
+            'ctrl+shift+j',
+            'f8',
+            'f2'
+        ]
+        for hk in hotkeys:
+            try:
+                keyboard.add_hotkey(hk, trigger_hotkey_activation, suppress=False)
+                print(f"[Keyboard Hotkey Hook]: Registered '{hk}' globally.")
+            except Exception as hk_err:
+                print(f"[Keyboard Hotkey Hook]: Notice registering '{hk}': {hk_err}")
+    except Exception as err:
+        print(f"[Keyboard Hotkey Hook]: Keyboard module hook skipped ({err})")
 
 def global_hotkey_listener():
-    """System-wide real-time global hotkey listener with persistent auto-restart."""
-    print("[Global Hotkey]: Starting Always-On system-wide hotkeys (Ctrl+J, Alt+J, Win+J, Ctrl+Space, F8, F2)...")
+    """System-wide real-time global hotkey listener with persistent auto-restart via Win32 RegisterHotKey."""
+    print("[Win32 Global Hotkey]: Starting Always-On Win32 system-wide hotkeys (Ctrl+J, Alt+J, Win+J, Ctrl+Space, F8, F2)...")
     user32 = ctypes.windll.user32
     
     HOTKEYS = [
@@ -254,24 +320,25 @@ def global_hotkey_listener():
             for hk_id, mod, vk in HOTKEYS:
                 user32.UnregisterHotKey(None, hk_id)
                 res = user32.RegisterHotKey(None, hk_id, mod, vk)
-                if res:
-                    print(f"[Global Hotkey]: Hotkey ID {hk_id} ACTIVE")
+                if not res:
+                    # Fallback without MOD_NOREPEAT (0x4000)
+                    user32.RegisterHotKey(None, hk_id, mod & ~0x4000, vk)
 
             # Message pump loop
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
                 if msg.message == 0x0312:  # WM_HOTKEY
-                    print(f"[Global Hotkey]: Instant Hotkey ID {msg.wParam} detected!")
+                    print(f"[Win32 Global Hotkey]: Hotkey ID {msg.wParam} detected!")
                     trigger_hotkey_activation()
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
 
         except Exception as e:
-            print(f"[Global Hotkey Watchdog]: Exception {e}, restarting listener in 1s...")
+            print(f"[Win32 Global Hotkey Watchdog]: Exception {e}, restarting listener in 1s...")
             time.sleep(1)
 
 def hotword():
-    """Continuous background hotword listener for keyword 'Jarvis'."""
-    print("[Hotword]: Starting continuous ambient listener for keyword 'Jarvis'...")
+    """Continuous background hotword listener for keyword 'Jarvis' with mic contention protection."""
+    print("[Hotword]: Starting continuous ambient listener for keyword 'Jarvis' (24/7)...")
     import speech_recognition as sr
 
     # 1. Try Porcupine wake-word engine first if available
@@ -287,6 +354,9 @@ def hotword():
         )
         print("[Hotword]: Porcupine wake-word engine active for 'Jarvis'.")
         while True:
+            if _is_assistant_listening or _assistant_busy_lock.locked():
+                time.sleep(0.5)
+                continue
             keyword = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
             keyword = struct.unpack_from("h" * porcupine.frame_length, keyword)
             keyword_index = porcupine.process(keyword)
@@ -307,9 +377,18 @@ def hotword():
 
     while True:
         try:
+            if _is_assistant_listening or _assistant_busy_lock.locked():
+                time.sleep(0.5)
+                continue
+
             with sr.Microphone() as source:
                 r.adjust_for_ambient_noise(source, duration=0.3)
                 audio = r.listen(source, phrase_time_limit=3, timeout=5)
+
+            if _is_assistant_listening or _assistant_busy_lock.locked():
+                time.sleep(0.5)
+                continue
+
             try:
                 text = r.recognize_google(audio, language='en-in').lower()
                 print(f"[Hotword Ambient]: Heard '{text}'")
@@ -329,7 +408,7 @@ def hotword():
                         except Exception:
                             pass
                         try:
-                            eel.startListening()()
+                            eel.showListeningWave()()
                         except Exception:
                             pass
                         from engine.command import allCommands
@@ -347,13 +426,18 @@ def hotword():
             time.sleep(1)
 
 def start_background_listeners():
-    """Start all background listeners (Global Hotkeys and Hotwords) for 24/7 realtime listening."""
-    t_hotkey = threading.Thread(target=global_hotkey_listener, daemon=True)
+    """Start all background listeners (Keyboard Hooks, Win32 Global Hotkeys, and Hotwords) for 24/7 realtime listening."""
+    # 1. Setup keyboard library low-level hook
+    setup_keyboard_hooks()
+
+    # 2. Start Win32 RegisterHotKey pump in daemon thread
+    t_hotkey = threading.Thread(target=global_hotkey_listener, daemon=True, name="Win32HotkeyThread")
     t_hotkey.start()
 
-    t_hotword = threading.Thread(target=hotword, daemon=True)
+    # 3. Start Hotword ambient listener in daemon thread
+    t_hotword = threading.Thread(target=hotword, daemon=True, name="HotwordThread")
     t_hotword.start()
-    print("[Background]: Global Hotkeys & Hotword listeners are now running in real-time.")
+    print("[Background]: Global Hotkeys (Ctrl+J, Alt+J, Ctrl+Space, F8, F2) & Hotword listeners are now running 24/7.")
 
 # find contacts
 def findContact(query):

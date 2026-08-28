@@ -147,17 +147,20 @@ $(document).ready(function () {
 
             console.log("[Hotkey]: Instant hotkey activated:", e.key || e.code);
 
-            // Instant visual & audio response
-            if (typeof eel !== 'undefined' && typeof eel.playAssistantSound === 'function') {
-                try { eel.playAssistantSound(); } catch (err) {}
-            }
+            // Instant visual UI update
             $("#Oval").attr("hidden", true);
             $("#SiriWave").attr("hidden", false);
             updateSiriStatus("Listening...");
 
-            // Trigger listener immediately
-            if (typeof eel !== 'undefined' && typeof eel.allCommands === 'function') {
-                eel.allCommands()();
+            // Trigger backend or frontend listener
+            if (typeof eel !== 'undefined' && typeof eel.trigger_hotkey_from_ui === 'function') {
+                try {
+                    eel.trigger_hotkey_from_ui()();
+                } catch (err) {
+                    if (typeof eel.allCommands === 'function') {
+                        eel.allCommands()();
+                    }
+                }
             } else if (typeof voiceManager !== 'undefined') {
                 voiceManager.startListening();
             }

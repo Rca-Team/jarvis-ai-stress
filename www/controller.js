@@ -77,18 +77,22 @@ $(document).ready(function () {
                 stressHUD.fetchStatus();
             }
         }, 1000);
+    // Update UI to active Siri wave listening mode
+    function showListeningWave() {
+        $("#Oval").attr("hidden", true);
+        $("#SiriWave").attr("hidden", false);
+        $(".siri-status").text("Listening...");
     }
 
     // Trigger voice listening when 'Jarvis' hotword is spoken
     function startListening() {
-        console.log("[Jarvis]: Hotword 'Jarvis' activated! Listening for command...");
+        console.log("[Jarvis]: Voice listening activated!");
         if (typeof eel !== 'undefined' && eel.playAssistantSound) {
-            eel.playAssistantSound();
+            try { eel.playAssistantSound(); } catch (e) {}
         }
-        $("#Oval").attr("hidden", true);
-        $("#SiriWave").attr("hidden", false);
+        showListeningWave();
         if (typeof eel !== 'undefined' && eel.allCommands) {
-            eel.allCommands()();
+            try { eel.allCommands()(); } catch (e) {}
         }
     }
 
@@ -101,6 +105,7 @@ $(document).ready(function () {
     window.hideFaceAuth = hideFaceAuth;
     window.hideFaceAuthSuccess = hideFaceAuthSuccess;
     window.hideStart = hideStart;
+    window.showListeningWave = showListeningWave;
     window.startListening = startListening;
 
     // Safely expose to Eel if running in Eel environment
@@ -114,6 +119,7 @@ $(document).ready(function () {
             eel.expose(hideFaceAuth);
             eel.expose(hideFaceAuthSuccess);
             eel.expose(hideStart);
+            eel.expose(showListeningWave);
             eel.expose(startListening);
         } catch (e) {
             console.warn("Eel expose skipped:", e);
