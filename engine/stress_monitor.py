@@ -9,12 +9,17 @@ from collections import deque
 from PIL import Image
 from google import genai
 from google.genai import types
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 cascade_path = os.path.join(base_dir, 'auth', 'haarcascade_frontalface_default.xml')
 db_path = os.path.join(os.path.dirname(base_dir), 'jarvis.db')
 
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', 'AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU')
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
 
 
 class StressMonitorEngine:
@@ -345,7 +350,10 @@ class StressMonitorEngine:
     def analyze_face_frame(self, face_rgb_img):
         """Send face image crop to Gemini 2.5 Flash Vision for deep stress analysis."""
         try:
-            client = genai.Client(api_key=GOOGLE_API_KEY)
+            api_key = os.getenv('GOOGLE_API_KEY') or GOOGLE_API_KEY
+            if not api_key:
+                return None
+            client = genai.Client(api_key=api_key)
             prompt = (
                 "You are an AI wellness and stress monitoring assistant. "
                 "Analyze this user's facial expression, eye fatigue, brow tension, and posture from this webcam frame. "

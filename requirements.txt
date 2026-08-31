@@ -12,3 +12,4 @@ pywhatkit>=5.4
 requests>=2.31.0
 playsound==1.2.2
 numpy>=1.24.0
+python-dotenv>=1.0.0

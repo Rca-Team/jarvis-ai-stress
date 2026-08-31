@@ -14,6 +14,11 @@ from engine.command import speak
 from engine.config import ASSISTANT_NAME
 from google import genai
 from google.genai import types
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Playing assistant sound function
 import pywhatkit as kit
@@ -502,7 +507,9 @@ def whatsApp(mobile_no, message, flag, name):
 
 # Chatbot function with multi-turn history using google.genai
 def get_genai_client():
-    primary_key = os.getenv('GOOGLE_API_KEY', 'AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU')
+    primary_key = os.getenv('GOOGLE_API_KEY', '')
+    if not primary_key:
+        return None
     return genai.Client(api_key=primary_key)
 
 def chatBot(query):

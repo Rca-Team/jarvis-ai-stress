@@ -1,11 +1,11 @@
 # Implementation Plan - Gemini API Key, Chat History, and Realtime Voice Function
 
-Configure Jarvis AI with the provided Gemini API key (`AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU`), implement persistent multi-turn chat history with backend SQLite storage & frontend UI canvas sync, and enable continuous hands-free real-time voice mode with synchronized visual wave animations.
+Configure Jarvis AI with the provided Gemini API key (`your_gemini_api_key`), implement persistent multi-turn chat history with backend SQLite storage & frontend UI canvas sync, and enable continuous hands-free real-time voice mode with synchronized visual wave animations.
 
 ## User Review Required
 
 > [!NOTE]
-> The provided API key `AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU` will be configured as the primary key for Gemini 2.5 Flash and Gemini 1.5 Flash fallback across all backend modules (`app.py`, `config.py`, and `engine/features.py`).
+> The provided API key `your_gemini_api_key` will be configured as the primary key for Gemini 2.5 Flash and Gemini 1.5 Flash fallback across all backend modules (`app.py`, `config.py`, and `engine/features.py`).
 
 > [!IMPORTANT]
 > Chat history will now be persisted in SQLite (`jarvis.db`) under a new `chat_history` table and fed to Gemini as multi-turn conversation context so Jarvis remembers past interactions across sessions.
@@ -17,10 +17,10 @@ Configure Jarvis AI with the provided Gemini API key (`AIzaSyBnqh7CyKty76H1eqBXm
 ### Backend Components (`app.py`, `config.py`, `engine/features.py`)
 
 #### [MODIFY] [config.py](file:///c:/Users/pukhr/Downloads/Jarvis-AI/config.py)
-- Set default `GOOGLE_API_KEY` fallback to `AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU`.
+- Set default `GOOGLE_API_KEY` fallback to `your_gemini_api_key`.
 
 #### [MODIFY] [app.py](file:///c:/Users/pukhr/Downloads/Jarvis-AI/app.py)
-- Update default `GOOGLE_API_KEY` to `AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU`.
+- Update default `GOOGLE_API_KEY` to `your_gemini_api_key`.
 - Initialize `chat_history` table in SQLite (`id`, `sender`, `message`, `timestamp`).
 - Update `get_gemini_response(prompt, history)` to accept multi-turn chat context and pass history to Gemini (`client.chats.create` or `contents` payload).
 - Update `/api/chat` to save user messages, build history context, query Gemini, save model response to SQLite DB, and return response.
@@ -28,7 +28,7 @@ Configure Jarvis AI with the provided Gemini API key (`AIzaSyBnqh7CyKty76H1eqBXm
 - Add `DELETE /api/chat/history` endpoint to clear stored history.
 
 #### [MODIFY] [engine/features.py](file:///c:/Users/pukhr/Downloads/Jarvis-AI/engine/features.py)
-- Replace outdated hardcoded API key in `chatBot` with `GOOGLE_API_KEY` (`AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU`).
+- Replace outdated hardcoded API key in `chatBot` with `GOOGLE_API_KEY` (`your_gemini_api_key`).
 - Add SQLite table creation for `chat_history`.
 
 ---

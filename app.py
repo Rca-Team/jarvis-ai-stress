@@ -3,10 +3,16 @@ import sqlite3
 from flask import Flask, request, jsonify, send_from_directory
 from google import genai
 from google.genai import types
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = Flask(__name__, static_folder='www', static_url_path='')
 
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', 'AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU')
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
+
 
 DB_PATH = 'jarvis.db'
 
@@ -51,8 +57,11 @@ def init_db():
 init_db()
 
 def get_gemini_response(prompt, conversation_history=None):
+    api_key = os.getenv('GOOGLE_API_KEY') or GOOGLE_API_KEY
+    if not api_key:
+        return "Gemini API Key is not configured. Please add GOOGLE_API_KEY to your .env file."
     try:
-        client = genai.Client(api_key=GOOGLE_API_KEY)
+        client = genai.Client(api_key=api_key)
         contents = []
         if conversation_history:
             for item in conversation_history:
