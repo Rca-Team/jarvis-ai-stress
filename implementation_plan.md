@@ -1,6 +1,6 @@
 # Implementation Plan - Gemini API Key, Chat History, and Realtime Voice Function
 
-Configure Jarvis AI with the provided Gemini API key (`AIzaSyBnqh7CyKty76H1eqBXmOwpkqhRuxX3IDU`), implement persistent multi-turn chat history with backend SQLite storage & frontend UI canvas sync, and enable continuous hands-free real-time voice mode with synchronized visual wave animations.
+Configure Jarvis AI with the provided Gemini API key , implement persistent multi-turn chat history with backend SQLite storage & frontend UI canvas sync, and enable continuous hands-free real-time voice mode with synchronized visual wave animations.
 
 ## User Review Required
 
