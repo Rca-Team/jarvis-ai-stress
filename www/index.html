@@ -55,12 +55,62 @@
                 <label class="form-check-label text-light small" for="stressCameraToggle"><i class="bi bi-camera-video me-1"></i>Monitor</label>
             </div>
 
+            <button class="btn btn-sm btn-outline-info hud-vision-btn" id="seeScreenBtn" title="AI inspect what is currently on your laptop screen">
+                <i class="bi bi-eye-fill me-1"></i>See Screen
+            </button>
+            <button class="btn btn-sm btn-outline-primary hud-pip-btn" id="pipToggleBtn" title="Always-On-Top Floating PiP Mode (Alt+P)">
+                <i class="bi bi-pip me-1"></i>PiP Mode
+            </button>
             <button class="btn btn-sm btn-outline-warning hud-cooldown-btn" id="hudCooldownBtn" title="2-Minute Stress Cool Down">
                 <i class="bi bi-stopwatch-fill me-1"></i>2-Min Cool Down
             </button>
             <button class="btn btn-sm btn-outline-info hud-relief-btn" id="hudReliefBtn" title="Open Relief Center">
                 <i class="bi bi-flower1"></i> Relief Center
             </button>
+        </div>
+    </div>
+
+    <!-- Dedicated Always-On-Top Floating PiP Widget -->
+    <div id="pipOverlay" class="pip-overlay d-none">
+        <div class="pip-header d-flex justify-content-between align-items-center px-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-cpu text-info"></i>
+                <span class="pip-title fw-bold text-light small">JARVIS COPILOT</span>
+                <span class="badge bg-primary x-small">PiP</span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-xs btn-outline-light pip-restore-btn py-0 px-2" id="pipExitBtn" title="Restore Dashboard">
+                    <i class="bi bi-arrows-angle-expand"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="pip-body p-3 text-center d-flex flex-column justify-content-between">
+            <!-- Mini visualizer -->
+            <div class="pip-visual my-2 d-flex justify-content-center align-items-center">
+                <div class="pip-orb" id="pipOrb">
+                    <i class="bi bi-broadcast text-info fs-3 animate__animated animate__pulse animate__infinite"></i>
+                </div>
+            </div>
+
+            <!-- Live Speech & AI Guidance Bubble -->
+            <div class="pip-speech-bubble p-2 rounded bg-black bg-opacity-75 border border-secondary text-light small mb-2 text-start" style="min-height: 80px; max-height: 120px; overflow-y: auto;">
+                <div class="x-small text-info mb-1"><i class="bi bi-robot me-1"></i>Jarvis Live:</div>
+                <div id="pipResponseText" class="x-small">Ready to assist you across any task on your screen.</div>
+            </div>
+
+            <!-- Quick Action Toolbar -->
+            <div class="d-flex justify-content-center align-items-center gap-2 pt-1">
+                <button class="btn btn-sm btn-info pip-action-btn flex-fill" id="pipMicBtn" title="Talk to Jarvis">
+                    <i class="bi bi-mic-fill"></i> Speak
+                </button>
+                <button class="btn btn-sm btn-outline-info pip-action-btn flex-fill" id="pipSeeScreenBtn" title="AI inspect screen">
+                    <i class="bi bi-eye-fill"></i> See Screen
+                </button>
+                <button class="btn btn-sm btn-outline-warning pip-action-btn" id="pipCooldownBtn" title="2-Min Cool Down">
+                    <i class="bi bi-stopwatch-fill"></i>
+                </button>
+            </div>
         </div>
     </div>
 

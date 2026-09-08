@@ -3,6 +3,7 @@ $(document).ready(function () {
     // Display Speak Message
     function DisplayMessage(message) {
         $(".siri-message").text(message);
+        $("#pipResponseText").text(message);
         if ($.fn && $.fn.textillate) {
             try {
                 $('.siri-message').textillate('start');
@@ -123,6 +124,64 @@ $(document).ready(function () {
         }
     }
 
+    // Always-on-Top Picture-in-Picture UI Mode Switcher
+    function set_pip_mode_ui(isPip) {
+        if (isPip) {
+            $('body').addClass('pip-mode');
+            $('#pipOverlay').removeClass('d-none');
+            $('#pipToggleBtn').html('<i class="bi bi-arrows-angle-expand me-1"></i>Full Mode');
+        } else {
+            $('body').removeClass('pip-mode');
+            $('#pipOverlay').addClass('d-none');
+            $('#pipToggleBtn').html('<i class="bi bi-pip me-1"></i>PiP Mode');
+        }
+    }
+
+    // Bind PiP Mode Toggles
+    $("#pipToggleBtn, #pipExitBtn").click(function () {
+        if (typeof eel !== 'undefined' && eel.eel_toggle_pip) {
+            eel.eel_toggle_pip()();
+        } else {
+            set_pip_mode_ui(!$('body').hasClass('pip-mode'));
+        }
+    });
+
+    // Bind Live Screen Vision Buttons
+    $("#seeScreenBtn, #pipSeeScreenBtn").click(function () {
+        if (typeof eel !== 'undefined' && eel.eel_see_screen) {
+            eel.eel_see_screen("What is on my screen and how can you assist me with it?")();
+        } else {
+            fetch('/api/vision/screen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: "What is on my screen and how can you assist me with it?" })
+            }).then(r => r.json()).then(d => {
+                if (d.response) {
+                    DisplayMessage(d.response);
+                }
+            });
+        }
+    });
+
+    // PiP Action Buttons
+    $("#pipMicBtn").click(function () {
+        startListening();
+    });
+
+    $("#pipCooldownBtn").click(function () {
+        if (typeof window.startTwoMinuteCoolDown === 'function') {
+            window.startTwoMinuteCoolDown();
+        }
+    });
+
+    // Alt+P shortcut to toggle PiP mode
+    $(document).keydown(function (e) {
+        if (e.altKey && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
+            e.preventDefault();
+            $("#pipToggleBtn").click();
+        }
+    });
+
     // Expose functions to window globally
     window.DisplayMessage = DisplayMessage;
     window.ShowHood = ShowHood;
@@ -136,6 +195,7 @@ $(document).ready(function () {
     window.resetToAuth = resetToAuth;
     window.showListeningWave = showListeningWave;
     window.startListening = startListening;
+    window.set_pip_mode_ui = set_pip_mode_ui;
 
     // Safely expose to Eel if running in Eel environment
     if (typeof eel !== 'undefined' && eel.expose) {
@@ -152,6 +212,7 @@ $(document).ready(function () {
             eel.expose(resetToAuth);
             eel.expose(showListeningWave);
             eel.expose(startListening);
+            eel.expose(set_pip_mode_ui);
         } catch (e) {
             console.warn("Eel expose skipped:", e);
         }

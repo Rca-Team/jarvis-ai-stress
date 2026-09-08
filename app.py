@@ -270,6 +270,33 @@ def student_stress_suggestion_endpoint():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/vision/screen', methods=['POST', 'GET'])
+def vision_screen_endpoint():
+    try:
+        from engine.features import analyze_screen_with_ai
+        query = "What is on my screen and what should I do?"
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            query = data.get('query', query)
+        result = analyze_screen_with_ai(query)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/window/pip', methods=['POST', 'GET'])
+def window_pip_endpoint():
+    try:
+        from engine.features import toggle_pip_mode
+        enable = None
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            if 'enable' in data:
+                enable = bool(data['enable'])
+        result = toggle_pip_mode(enable)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/student/study_note', methods=['POST'])
 def student_study_note_endpoint():
     try:

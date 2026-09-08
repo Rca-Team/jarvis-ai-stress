@@ -357,7 +357,27 @@ def allCommands(message=1):
             from engine.features import start_two_minute_cooldown
             start_two_minute_cooldown()
 
-        # 16. Conversational Chatbot (Gemini + Local Academic Mentor)
+        # 16. Multimodal Screen Vision (Live Screen AI Analysis & Navigation)
+        elif any(k in query for k in [
+            "what is on my screen", "what's on my screen", "look at my screen",
+            "see my screen", "help me with my screen", "explain my screen",
+            "explain what's on my screen", "what do you see on my screen",
+            "check my screen", "help me navigate this", "navigate on screen",
+            "solve this on my screen", "check this code on my screen", "summarize my screen"
+        ]):
+            from engine.features import analyze_screen_with_ai
+            analyze_screen_with_ai(query)
+
+        # 17. Picture-in-Picture (PiP) / Always-on-Top Floating Mode
+        elif any(k in query for k in ["pip mode", "picture in picture", "floating mode", "float on top", "minimize to widget", "enter pip"]):
+            from engine.features import toggle_pip_mode
+            toggle_pip_mode(True)
+
+        elif any(k in query for k in ["exit pip", "close pip", "restore dashboard", "full screen", "maximize window", "restore window", "normal window"]):
+            from engine.features import toggle_pip_mode
+            toggle_pip_mode(False)
+
+        # 18. Conversational Chatbot (Gemini + Local Academic Mentor)
         else:
             from engine.features import chatBot
             chatBot(query)

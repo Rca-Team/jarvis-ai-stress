@@ -419,9 +419,12 @@ import threading
 _assistant_busy_lock = threading.Lock()
 _is_assistant_listening = False
 _last_activation_time = 0.0
+_is_pip_mode = False
+_normal_window_rect = (100, 80, 1100, 750)
 
-def focus_jarvis_window():
-    """Bring the Jarvis application window to foreground if minimized or backgrounded."""
+def find_jarvis_hwnd():
+    """Find the HWND handle for the Jarvis application window."""
+    found = [None]
     try:
         user32 = ctypes.windll.user32
         def enum_window_callback(hwnd, extra):
@@ -432,15 +435,158 @@ def focus_jarvis_window():
                     user32.GetWindowTextW(hwnd, buff, length + 1)
                     title = buff.value.lower()
                     if "jarvis" in title or "localhost:8000" in title:
-                        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                        user32.SetForegroundWindow(hwnd)
+                        found[0] = hwnd
                         return False
             return True
 
         WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
         user32.EnumWindows(WNDENUMPROC(enum_window_callback), 0)
     except Exception as e:
+        print(f"Error finding Jarvis window handle: {e}")
+    return found[0]
+
+def focus_jarvis_window():
+    """Bring the Jarvis application window to foreground if minimized or backgrounded."""
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = find_jarvis_hwnd()
+        if hwnd:
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+    except Exception:
         pass
+
+def toggle_pip_mode(enable=None):
+    """Toggle Always-On-Top Picture-in-Picture floating widget mode in screen corner."""
+    global _is_pip_mode, _normal_window_rect
+    user32 = ctypes.windll.user32
+
+    if enable is None:
+        _is_pip_mode = not _is_pip_mode
+    else:
+        _is_pip_mode = bool(enable)
+
+    hwnd = find_jarvis_hwnd()
+    screen_w = user32.GetSystemMetrics(0)  # SM_CXSCREEN
+    screen_h = user32.GetSystemMetrics(1)  # SM_CYSCREEN
+
+    HWND_TOPMOST = -1
+    HWND_NOTOPMOST = -2
+    SWP_SHOWWINDOW = 0x0040
+
+    if _is_pip_mode:
+        pip_w = 360
+        pip_h = 470
+        pip_x = max(10, screen_w - pip_w - 20)
+        pip_y = max(10, screen_h - pip_h - 55)
+
+        if hwnd:
+            rect = wintypes.RECT()
+            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                _normal_window_rect = (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+            user32.ShowWindow(hwnd, 9)
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, pip_x, pip_y, pip_w, pip_h, SWP_SHOWWINDOW)
+            user32.SetForegroundWindow(hwnd)
+
+        try:
+            eel.set_pip_mode_ui(True)()
+        except Exception:
+            try:
+                eel.set_pip_mode_ui(True)
+            except Exception:
+                pass
+
+        speak("Picture-in-picture mode enabled, sir. I am pinned on top and ready to assist you while you navigate your work.")
+        return {"status": "success", "pip_mode": True, "x": pip_x, "y": pip_y, "w": pip_w, "h": pip_h}
+    else:
+        norm_x, norm_y, norm_w, norm_h = _normal_window_rect
+        if hwnd:
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, norm_x, norm_y, norm_w, norm_h, SWP_SHOWWINDOW)
+            user32.SetForegroundWindow(hwnd)
+
+        try:
+            eel.set_pip_mode_ui(False)()
+        except Exception:
+            try:
+                eel.set_pip_mode_ui(False)
+            except Exception:
+                pass
+
+        speak("Restored to full dashboard.")
+        return {"status": "success", "pip_mode": False}
+
+def get_active_window_info():
+    """Retrieve title of the currently active user desktop window."""
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        if hwnd:
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buff = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buff, length + 1)
+                val = buff.value.strip()
+                if val and "jarvis" not in val.lower():
+                    return val
+    except Exception:
+        pass
+    return "Active Application"
+
+def capture_screen_image():
+    """Capture a high-quality desktop screenshot for multimodal vision processing."""
+    try:
+        from PIL import ImageGrab
+        img = ImageGrab.grab()
+        if img and img.width > 1280:
+            scale = 1280.0 / img.width
+            new_size = (1280, int(img.height * scale))
+            img = img.resize(new_size)
+        return img
+    except Exception as e:
+        print(f"[Vision Capture Error]: {e}")
+        return None
+
+def analyze_screen_with_ai(query="What is on my screen and how can you help me with it?"):
+    """Multimodal Vision analysis: captures screen, inspects active window, and delivers customized AI guidance."""
+    active_window = get_active_window_info()
+    speak("Looking at your screen right now, sir. One moment.")
+
+    screenshot = capture_screen_image()
+
+    client = get_genai_client()
+    if client and screenshot:
+        prompt = (
+            f"You are Jarvis, a brilliant, super-helpful desktop copilot and academic study assistant. "
+            f"The user is working on their laptop and asks: '{query}'. "
+            f"Active Window/Application: '{active_window}'. "
+            f"Analyze the attached live screenshot of their screen. "
+            f"Identify exactly what they are doing (e.g. coding, reading a PDF, solving an exam problem, viewing a slide, or working on an app). "
+            f"Provide a customized, clear, concise, and directly actionable response to guide them or solve their request. "
+            f"Keep your voice response conversational, natural, and concise (2-4 sentences max)."
+        )
+        for model_name in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']:
+            try:
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=[screenshot, prompt]
+                )
+                if resp and resp.text:
+                    clean_reply = resp.text.strip().replace("**", "").replace("•", "-")
+                    print(f"[Jarvis Screen Vision]: {clean_reply}")
+                    add_chat_history("user", f"[Screen Vision]: {query}")
+                    add_chat_history("assistant", clean_reply)
+                    speak(clean_reply)
+                    return {"status": "success", "source": "gemini_vision", "response": clean_reply, "active_window": active_window}
+            except Exception as v_err:
+                print(f"Model {model_name} vision attempt: {v_err}")
+                continue
+
+    fallback_reply = f"You are currently working on {active_window}, sir. Tell me what specific task or problem you'd like me to assist you with."
+    print(f"[Jarvis Screen Fallback]: {fallback_reply}")
+    add_chat_history("user", f"[Screen Query]: {query}")
+    add_chat_history("assistant", fallback_reply)
+    speak(fallback_reply)
+    return {"status": "fallback", "response": fallback_reply, "active_window": active_window}
 
 def trigger_hotkey_activation(force=False):
     """Instant real-time trigger for Jarvis when global hotkey is pressed.
@@ -1420,4 +1566,12 @@ def get_exam_relief_guidance(subject="general"):
             "• **20-20-20 Rule**: Look at an object 20 feet away for 20 seconds to prevent screen eye strain."
         )
     return {"status": "success", "advice": local_advice, "source": "local"}
+
+@eel.expose
+def eel_toggle_pip(enable=None):
+    return toggle_pip_mode(enable)
+
+@eel.expose
+def eel_see_screen(query="What is on my screen and what should I do?"):
+    return analyze_screen_with_ai(query)
 

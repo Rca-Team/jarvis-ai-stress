@@ -753,3 +753,101 @@ to {
     from { transform: scale(1); }
     to { transform: scale(1.18); }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Always-on-Top Floating Picture-in-Picture (PiP) Mode Styles
+   ───────────────────────────────────────────────────────────── */
+body.pip-mode {
+    background: transparent !important;
+    overflow: hidden !important;
+}
+
+body.pip-mode .stress-hud-bar,
+body.pip-mode .container,
+body.pip-mode .offcanvas,
+body.pip-mode .modal {
+    display: none !important;
+}
+
+body.pip-mode #pipOverlay {
+    display: flex !important;
+}
+
+.pip-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 15, 26, 0.94);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    border-radius: 12px;
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.3), inset 0 0 15px rgba(0, 229, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    z-index: 999999;
+}
+
+.pip-header {
+    background: rgba(0, 0, 0, 0.6);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+    user-select: none;
+    -webkit-app-region: drag;
+}
+
+.pip-header button {
+    -webkit-app-region: no-drag;
+}
+
+.pip-body {
+    flex: 1;
+    overflow: hidden;
+}
+
+.pip-orb {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 229, 255, 0.3) 0%, rgba(0, 100, 255, 0.05) 70%);
+    border: 1px solid #00e5ff;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pip-speech-bubble {
+    border: 1px solid rgba(0, 229, 255, 0.25) !important;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.pip-speech-bubble::-webkit-scrollbar {
+    width: 3px;
+}
+
+.pip-action-btn {
+    font-size: 0.76rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.pip-action-btn:hover {
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
+}
+
+.hud-vision-btn, .hud-pip-btn {
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.hud-vision-btn:hover {
+    box-shadow: 0 0 12px rgba(13, 202, 240, 0.5);
+}
+
+.hud-pip-btn:hover {
+    box-shadow: 0 0 12px rgba(13, 110, 253, 0.5);
+}
