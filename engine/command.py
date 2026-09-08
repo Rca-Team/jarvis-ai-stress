@@ -307,7 +307,27 @@ def _process_all_commands(message):
             from engine.features import openCommand
             openCommand(query)
 
-        # 11. Contacts & Messaging
+        # 11A. WhatsApp Direct Voice Call Intent
+        elif any(k in query for k in ["whatsapp call", "call on whatsapp", "voice call on whatsapp", "whatsapp voice call", "make a whatsapp call"]):
+            from engine.features import whatsapp_call
+            whatsapp_call(query)
+
+        # 11B. WhatsApp Direct Video Call Intent
+        elif any(k in query for k in ["whatsapp video call", "video call on whatsapp", "make a video call on whatsapp"]):
+            from engine.features import whatsapp_video_call
+            whatsapp_video_call(query)
+
+        # 11C. WhatsApp Share Document / File Intent
+        elif any(k in query for k in ["whatsapp document", "share document on whatsapp", "send document on whatsapp", "share notes on whatsapp", "send notes on whatsapp", "send file on whatsapp", "share file on whatsapp"]):
+            from engine.features import whatsapp_share_document
+            whatsapp_share_document(query)
+
+        # 11D. WhatsApp Text Message Intent
+        elif any(k in query for k in ["whatsapp message", "send whatsapp", "text on whatsapp", "message on whatsapp"]) or (query.startswith("whatsapp ") and not any(x in query for x in ["call", "video", "document", "file", "notes"])):
+            from engine.features import whatsapp_send_text
+            whatsapp_send_text(query)
+
+        # 11E. General Contacts & Cellular Messaging Fallback
         elif "send message" in query or "phone call" in query or "video call" in query:
             from engine.features import findContact, whatsApp, makeCall, sendMessage
             contact_no, name = findContact(query)
@@ -325,9 +345,12 @@ def _process_all_commands(message):
                         speak("Please try again.")
                 elif "whatsapp" in preference:
                     flag = 'message' if "send message" in query else ('call' if "phone call" in query else 'video call')
-                    speak("What message would you like to send?")
-                    msg_text = takecommand()
-                    whatsApp(contact_no, msg_text, flag, name)
+                    if flag == 'message':
+                        speak("What message would you like to send?")
+                        msg_text = takecommand()
+                        whatsApp(contact_no, msg_text, flag, name)
+                    else:
+                        whatsApp(contact_no, '', flag, name)
             else:
                 speak("I could not find that contact in your database, sir.")
 

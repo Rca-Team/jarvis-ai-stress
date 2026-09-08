@@ -832,66 +832,241 @@ def start_background_listeners():
     t_hotword.start()
     print("[Background]: Global Hotkeys (Ctrl+J, Alt+J, Ctrl+Space, F8, F2) & Hotword listeners are now running 24/7.")
 
+def clean_phone_number(raw_phone):
+    """Normalize phone number to clean international digits for WhatsApp (e.g. 919868901664)."""
+    import re
+    if not raw_phone:
+        return ""
+    # If multiple numbers exist separated by :::, take the first valid one
+    parts = str(raw_phone).split(":::")
+    for part in parts:
+        digits = re.sub(r'\D', '', part)
+        if not digits:
+            continue
+        # Strip leading trunk 0 if present (e.g. 097724... -> 97724...)
+        if len(digits) == 11 and digits.startswith('0'):
+            digits = digits[1:]
+        # If 10 digits (typical Indian mobile), prefix with country code 91
+        if len(digits) == 10:
+            digits = '91' + digits
+        if len(digits) >= 11:
+            return digits
+    return re.sub(r'\D', '', str(raw_phone))
+
 # find contacts
 def findContact(query):
-    words_to_remove = [ASSISTANT_NAME, 'make', 'a', 'to', 'phone', 'call', 'send', 'message', 'whatsapp', 'video']
-    query = remove_words(query, words_to_remove)
+    """Find contact by name in jarvis.db and return (cleaned_phone, matched_name)."""
+    import re
+    query_lower = query.lower()
+    # Strip common intent keywords
+    clean = re.sub(r'\b(jarvis|whatsapp|call|phone|video|send|message|text|share|document|file|notes|with|to|on|please|make|a)\b', ' ', query_lower)
+    clean = ' '.join(clean.split()).strip()
 
     try:
-        query = query.strip().lower()
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT mobile_no FROM contacts WHERE LOWER(name) LIKE ? OR LOWER(name) LIKE ?", ('%' + query + '%', query + '%'))
-        results = cursor.fetchall()
+        cursor.execute('SELECT name, mobile_no FROM contacts')
+        all_contacts = cursor.fetchall()
         conn.close()
-        if not results:
-            speak('not exist in contacts')
-            return 0, 0
-        print(results[0][0])
-        mobile_number_str = str(results[0][0])
 
-        if not mobile_number_str.startswith('+91'):
-            mobile_number_str = '+91' + mobile_number_str
+        # 1. Exact or substring match on cleaned query
+        if clean:
+            for name, num in all_contacts:
+                if clean == name.lower() or name.lower() in clean or clean in name.lower():
+                    return clean_phone_number(num), name
 
-        return mobile_number_str, query
-    except:
-        speak('not exist in contacts')
-        return 0, 0
+        # 2. Match individual words in query
+        words = query_lower.split()
+        for w in words:
+            if len(w) >= 3 and w not in ['jarvis', 'whatsapp', 'call', 'video', 'send', 'message', 'document', 'share', 'file', 'notes']:
+                for name, num in all_contacts:
+                    if w == name.lower() or w in name.lower():
+                        return clean_phone_number(num), name
 
-def whatsApp(mobile_no, message, flag, name):
-    if flag == 'message':
-        target_tab = 12
-        jarvis_message = "message sent successfully to "+name
-    elif flag == 'call':
-        target_tab = 7
-        message = ''
-        jarvis_message = "calling to "+name
+        return 0, clean
+    except Exception as e:
+        print(f"[Contacts Search Error]: {e}")
+        return 0, clean
+
+def whatsApp(mobile_no, message="", flag='message', name="Contact", file_path=None):
+    """
+    Directly initiate WhatsApp actions:
+    - 'call': WhatsApp voice call (Ctrl + Shift + C)
+    - 'video' or 'video_call': WhatsApp video call (Ctrl + Shift + U / V)
+    - 'document' or 'file': Attach and send document or note via clipboard
+    - 'message': Send text message
+    """
+    import subprocess
+    import pyautogui
+    import time
+    from urllib.parse import quote
+
+    clean_no = clean_phone_number(str(mobile_no))
+    if not clean_no:
+        speak(f"Could not find a valid phone number for {name}, sir.")
+        return False
+
+    encoded_message = quote(message.strip()) if message else ""
+
+    if flag in ['call', 'voice_call']:
+        whatsapp_url = f"whatsapp://send?phone={clean_no}"
+        jarvis_msg = f"Initiating WhatsApp voice call to {name}, sir."
+    elif flag in ['video', 'video_call']:
+        whatsapp_url = f"whatsapp://send?phone={clean_no}"
+        jarvis_msg = f"Initiating WhatsApp video call with {name}, sir."
+    elif flag in ['document', 'file']:
+        whatsapp_url = f"whatsapp://send?phone={clean_no}"
+        jarvis_msg = f"Sharing document with {name} on WhatsApp, sir."
     else:
-        target_tab = 6
-        message = ''
-        jarvis_message = "starting video call with "+name
+        whatsapp_url = f"whatsapp://send?phone={clean_no}&text={encoded_message}"
+        jarvis_msg = f"Sending WhatsApp message to {name}, sir."
 
-    # Encode the message for URL
-    encoded_message = quote(message)
-    print(encoded_message)
-    # Construct the URL
-    whatsapp_url = f"whatsapp://send?phone={mobile_no}&text={encoded_message}"
+    speak(jarvis_msg)
 
-    # Construct the full command
-    full_command = f'start "" "{whatsapp_url}"'
+    # Launch WhatsApp Desktop protocol handler with web fallback
+    try:
+        os.system(f'start "" "{whatsapp_url}"')
+    except Exception:
+        webbrowser.open(f"https://web.whatsapp.com/send?phone={clean_no}&text={encoded_message}")
 
-    # Open WhatsApp with the constructed URL using cmd.exe
-    subprocess.run(full_command, shell=True)
-    time.sleep(5)
-    subprocess.run(full_command, shell=True)
-    
-    pyautogui.hotkey('ctrl', 'f')
+    # Allow WhatsApp Desktop to open and focus contact conversation
+    time.sleep(2.5)
 
-    for i in range(1, target_tab):
-        pyautogui.hotkey('tab')
+    if flag in ['call', 'voice_call']:
+        # WhatsApp Desktop shortcut for voice call: Ctrl + Shift + C
+        try:
+            pyautogui.hotkey('ctrl', 'shift', 'c')
+            time.sleep(0.5)
+        except Exception as err:
+            print(f"[WhatsApp Call Error]: {err}")
 
-    pyautogui.hotkey('enter')
-    speak(jarvis_message)
+    elif flag in ['video', 'video_call']:
+        # WhatsApp Desktop shortcut for video call: Ctrl + Shift + U or Ctrl + Shift + V
+        try:
+            pyautogui.hotkey('ctrl', 'shift', 'u')
+            time.sleep(0.5)
+            pyautogui.hotkey('ctrl', 'shift', 'v')
+        except Exception as err:
+            print(f"[WhatsApp Video Error]: {err}")
+
+    elif flag in ['document', 'file']:
+        # Determine document path
+        doc_path = file_path
+        if not doc_path or not os.path.exists(doc_path):
+            # Check default study notes
+            default_notes = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "notes", "study_notes.txt"))
+            if os.path.exists(default_notes):
+                doc_path = default_notes
+
+        if doc_path and os.path.exists(doc_path):
+            abs_doc = os.path.abspath(doc_path)
+            try:
+                # Copy file to Windows clipboard as FileDropList
+                ps_cmd = f'powershell -Command "Set-Clipboard -Path \'{abs_doc}\'"'
+                subprocess.run(ps_cmd, shell=True)
+                time.sleep(0.6)
+
+                # Paste file into WhatsApp chat input
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(1.2)  # Wait for file attachment card to render
+                pyautogui.press('enter')  # Send attachment
+                doc_name = os.path.basename(abs_doc)
+                speak(f"Document {doc_name} sent to {name}, sir.")
+            except Exception as err:
+                print(f"[WhatsApp Document Error]: {err}")
+                speak(f"Could not attach document automatically: {err}")
+        else:
+            speak(f"Opened chat with {name}, sir. Please select the file to share.")
+
+    else:
+        # Text message: press enter to send message
+        time.sleep(0.8)
+        pyautogui.press('enter')
+        speak(f"Message sent to {name}, sir.")
+
+    return True
+
+def whatsapp_call(query):
+    """Directly initiate a WhatsApp voice call for a contact."""
+    from engine.command import takecommand
+    contact_no, name = findContact(query)
+    if contact_no == 0:
+        speak("Whom would you like to call on WhatsApp, sir?")
+        target = takecommand()
+        if target:
+            contact_no, name = findContact(target)
+
+    if contact_no != 0:
+        whatsApp(contact_no, message='', flag='call', name=name)
+    else:
+        speak("I could not find that contact in your database, sir.")
+
+def whatsapp_video_call(query):
+    """Directly initiate a WhatsApp video call for a contact."""
+    from engine.command import takecommand
+    contact_no, name = findContact(query)
+    if contact_no == 0:
+        speak("Whom would you like to video call on WhatsApp, sir?")
+        target = takecommand()
+        if target:
+            contact_no, name = findContact(target)
+
+    if contact_no != 0:
+        whatsApp(contact_no, message='', flag='video', name=name)
+    else:
+        speak("I could not find that contact in your database, sir.")
+
+def whatsapp_share_document(query, file_path=None):
+    """Directly share a document or study notes with a contact on WhatsApp."""
+    from engine.command import takecommand
+    contact_no, name = findContact(query)
+    if contact_no == 0:
+        speak("Whom would you like to send the document to on WhatsApp, sir?")
+        target = takecommand()
+        if target:
+            contact_no, name = findContact(target)
+
+    if contact_no != 0:
+        # Check if study notes or specific file
+        resolved_file = file_path
+        if not resolved_file:
+            if any(k in query.lower() for k in ["notes", "study notes"]):
+                default_notes = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "notes", "study_notes.txt"))
+                if os.path.exists(default_notes):
+                    resolved_file = default_notes
+        whatsApp(contact_no, message='', flag='document', name=name, file_path=resolved_file)
+    else:
+        speak("I could not find that contact in your database, sir.")
+
+def whatsapp_send_text(query, message=None):
+    """Directly send a WhatsApp text message to a contact."""
+    import re
+    from engine.command import takecommand
+    contact_no, name = findContact(query)
+    if contact_no == 0:
+        speak("Whom would you like to message on WhatsApp, sir?")
+        target = takecommand()
+        if target:
+            contact_no, name = findContact(target)
+
+    if contact_no != 0:
+        msg_text = message
+        if not msg_text:
+            # Extract text if present after contact name
+            parts = re.split(re.escape(name), query, flags=re.IGNORECASE)
+            if len(parts) > 1 and parts[-1].strip():
+                msg_text = parts[-1].strip()
+                msg_text = re.sub(r'^(?:that|to|saying|says|:)\s*', '', msg_text, flags=re.IGNORECASE).strip()
+            else:
+                speak(f"What message would you like to send to {name}?")
+                msg_text = takecommand()
+
+        if msg_text:
+            whatsApp(contact_no, message=msg_text, flag='message', name=name)
+        else:
+            speak("Message sending cancelled.")
+    else:
+        speak("I could not find that contact in your database, sir.")
 
 # Chatbot function with multi-turn history using google.genai
 def get_genai_client():
@@ -1571,4 +1746,25 @@ def eel_toggle_pip(enable=None):
 @eel.expose
 def eel_see_screen(query="What is on my screen and what should I do?"):
     return analyze_screen_with_ai(query)
+
+@eel.expose
+def eel_whatsapp_call(name_or_query):
+    whatsapp_call(name_or_query)
+    return True
+
+@eel.expose
+def eel_whatsapp_video_call(name_or_query):
+    whatsapp_video_call(name_or_query)
+    return True
+
+@eel.expose
+def eel_whatsapp_message(name_or_query, message=""):
+    whatsapp_send_text(name_or_query, message)
+    return True
+
+@eel.expose
+def eel_whatsapp_document(name_or_query, doc_path=None):
+    whatsapp_share_document(name_or_query, doc_path)
+    return True
+
 

@@ -343,6 +343,35 @@ def student_action_endpoint():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/whatsapp/action', methods=['POST'])
+def whatsapp_action_endpoint():
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', 'call')  # 'call', 'video', 'message', 'document'
+        target = data.get('target', '')
+        message = data.get('message', '')
+        doc_path = data.get('doc_path', None)
+
+        from engine.features import (whatsapp_call, whatsapp_video_call, 
+                                     whatsapp_send_text, whatsapp_share_document)
+
+        if action in ['call', 'voice_call']:
+            whatsapp_call(target)
+            return jsonify({'status': 'success', 'action': 'call', 'target': target})
+        elif action in ['video', 'video_call']:
+            whatsapp_video_call(target)
+            return jsonify({'status': 'success', 'action': 'video', 'target': target})
+        elif action in ['document', 'file']:
+            whatsapp_share_document(target, doc_path)
+            return jsonify({'status': 'success', 'action': 'document', 'target': target})
+        elif action == 'message':
+            whatsapp_send_text(target, message)
+            return jsonify({'status': 'success', 'action': 'message', 'target': target})
+        else:
+            return jsonify({'status': 'error', 'message': f'Unknown WhatsApp action: {action}'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/stress/video_feed')
 def stress_video_feed():
     """Live MJPEG video stream with real-time biometric HUD overlay."""
