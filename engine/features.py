@@ -20,8 +20,11 @@ try:
 except ImportError:
     pass
 
-# Playing assistant sound function
-import pywhatkit as kit
+# Optional / lazy packages
+try:
+    import pywhatkit as kit
+except Exception:
+    kit = None
 import pvporcupine
 
 from engine.helper import extract_yt_term, remove_words
