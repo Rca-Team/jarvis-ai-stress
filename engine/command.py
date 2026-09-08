@@ -196,6 +196,10 @@ def takecommand():
 
 @eel.expose
 def allCommands(message=1):
+    """Non-blocking exposed endpoint so Eel websocket message loop never freezes."""
+    threading.Thread(target=_process_all_commands, args=(message,), daemon=True).start()
+
+def _process_all_commands(message):
     if message == 1:
         query = takecommand()
         print("Voice query:", query)

@@ -360,5 +360,5 @@ if __name__ == '__main__':
     except Exception as bg_err:
         print(f"Notice: background listeners could not start: {bg_err}")
     print(f"Starting Jarvis Server on http://localhost:8000 ...")
-    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False, threaded=True)
 

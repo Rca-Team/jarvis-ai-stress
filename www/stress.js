@@ -33,68 +33,101 @@ class StressHUDManager {
         // Refresh status when modal opens
         $('#reliefModal').on('shown.bs.modal', () => {
             this.updateModalAdvice();
+            this.checkCamFeedVisibility();
+        });
+        $('#reliefModal').on('hidden.bs.modal', () => {
+            this.stopCamFeed();
+        });
+        $(document).on('shown.bs.tab', () => {
+            this.checkCamFeedVisibility();
         });
     }
 
-    toggleCameraMonitor(enable) {
-        if (typeof eel !== 'undefined' && eel.start_stress_monitor) {
-            if (enable) {
-                eel.start_stress_monitor()(res => this.handleToggleResponse(res));
+    checkCamFeedVisibility() {
+        const liveFeed = document.getElementById("liveCamFeed");
+        const liveTab = document.getElementById("liveCamContent");
+        const modal = document.getElementById("reliefModal");
+        const isModalOpen = modal && ($(modal).hasClass("show") || $(modal).is(":visible"));
+        const isTabActive = liveTab && (liveTab.classList.contains("active") || $(liveTab).hasClass("show"));
+        const isActive = this.currentStatus && this.currentStatus.active === true;
+
+        if (liveFeed) {
+            if (isActive && isModalOpen && isTabActive) {
+                const expectedSrc = "/api/stress/video_feed";
+                if (!liveFeed.src || !liveFeed.src.endsWith(expectedSrc)) {
+                    liveFeed.src = expectedSrc;
+                }
+                liveFeed.style.display = "block";
+                $("#liveCamPlaceholder").hide();
             } else {
-                eel.stop_stress_monitor()(res => this.handleToggleResponse(res));
+                if (liveFeed.src && liveFeed.src !== "") {
+                    liveFeed.src = "";
+                }
+                liveFeed.style.display = "none";
+                $("#liveCamPlaceholder").show();
             }
-        } else {
-            fetch('/api/stress/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: enable ? 'start' : 'stop' })
-            })
-            .then(res => res.json())
-            .then(data => this.handleToggleResponse(data))
-            .catch(err => console.error("Stress toggle error:", err));
         }
     }
 
-    handleToggleResponse(res) {
-        const isActive = (res && (res.active === true || res.status === 'success'));
-        $("#stressCameraToggle").prop("checked", isActive);
-        if (isActive) {
-            $("#camStatusBadge").text("Cam Active").removeClass("bg-secondary").addClass("bg-success");
-        } else {
-            $("#camStatusBadge").text("Cam Off").removeClass("bg-success").addClass("bg-secondary");
+    stopCamFeed() {
+        const liveFeed = document.getElementById("liveCamFeed");
+        if (liveFeed && liveFeed.src) {
+            liveFeed.src = "";
+            liveFeed.style.display = "none";
+            $("#liveCamPlaceholder").show();
         }
-        this.fetchStatus();
     }
 
     startPolling() {
         this.fetchStatus();
-        this.pollInterval = setInterval(() => this.fetchStatus(), 500);
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.pollInterval = setInterval(() => this.fetchStatus(), 1200);
     }
 
     fetchStatus() {
+        if (this.isFetching) return;
+        this.isFetching = true;
+
         if (typeof eel !== 'undefined' && eel.get_stress_status) {
             eel.get_stress_status()(status => {
+                this.isFetching = false;
                 if (status) this.updateUI(status);
             });
         } else {
             fetch('/api/stress/status')
                 .then(res => res.json())
                 .then(data => {
+                    this.isFetching = false;
                     if (data.status === 'success' && data.data) {
                         this.updateUI(data.data);
                     }
                 })
-                .catch(() => {});
+                .catch(() => {
+                    this.isFetching = false;
+                });
         }
     }
 
     updateUI(status) {
+        if (!status) return;
         this.currentStatus = status;
         const score = Math.max(0, Math.min(100, status.score || 20));
         const state = status.state || "Calm & Relaxed";
         const advice = status.advice || "Keep breathing steady.";
         const isActive = status.active === true;
         const faceDetected = status.face_detected === true;
+
+        // Skip DOM thrashing if status has not changed
+        if (this._lastScore === score && this._lastState === state && 
+            this._lastActive === isActive && this._lastFace === faceDetected && 
+            this._lastAdvice === advice) {
+            return;
+        }
+        this._lastScore = score;
+        this._lastState = state;
+        this._lastActive = isActive;
+        this._lastFace = faceDetected;
+        this._lastAdvice = advice;
 
         $("#stressCameraToggle").prop("checked", isActive);
         if (isActive) {
@@ -105,22 +138,8 @@ class StressHUDManager {
             $("#camStatusBadge").text("Cam Off").removeClass("bg-success bg-warning").addClass("bg-secondary");
         }
 
-        // Update live camera feed
-        const liveFeed = document.getElementById("liveCamFeed");
-        if (liveFeed) {
-            if (isActive) {
-                const expectedSrc = "/api/stress/video_feed";
-                if (!liveFeed.src || !liveFeed.src.endsWith(expectedSrc)) {
-                    liveFeed.src = expectedSrc;
-                }
-                liveFeed.style.display = "block";
-                $("#liveCamPlaceholder").hide();
-            } else {
-                liveFeed.src = "";
-                liveFeed.style.display = "none";
-                $("#liveCamPlaceholder").show();
-            }
-        }
+        // On-demand camera feed check
+        this.checkCamFeedVisibility();
 
         // Update HUD Gauge with smooth CSS transition
         $("#stressScoreVal").text(`${score}%`);

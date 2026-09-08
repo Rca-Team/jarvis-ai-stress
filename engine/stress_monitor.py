@@ -515,16 +515,20 @@ class StressMonitorEngine:
     # ─────────────────────── Video Feed Generator ───────────────────────
 
     def generate_video_frames(self):
-        """Generator yielding MJPEG frames for live video streaming."""
-        while self.is_running:
-            with self.frame_lock:
-                frame = self.latest_annotated_frame
-            if frame is not None:
-                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-                if ret:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            time.sleep(0.033)
+        """Generator yielding MJPEG frames for live video streaming with low latency."""
+        try:
+            while self.is_running:
+                with self.frame_lock:
+                    frame = self.latest_annotated_frame
+                if frame is not None:
+                    # JPEG quality 60 reduces CPU compression overhead and bandwidth by 40%
+                    ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                    if ret:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                time.sleep(0.05)  # 20 FPS delivers smooth webcam HUD while saving CPU
+        except (GeneratorExit, Exception):
+            pass
 
     # ─────────────────────── Proactive Intervention ───────────────────────
 

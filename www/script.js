@@ -114,7 +114,15 @@ function canvasApp() {
 		turnSpeed = 2 * Math.PI / 1200; //the sphere will rotate at this speed (one complete rotation every 1600 frames).
 		turnAngle = 0; //initial angle
 
-		timer = setInterval(onTimer, 10 / 24);
+		var animFrameId = null;
+		function animLoop() {
+			// Skip canvas work if tab is hidden, canvas is hidden, or PiP mode is active
+			if (!document.hidden && theCanvas.offsetParent !== null && !document.body.classList.contains('pip-mode')) {
+				onTimer();
+			}
+			animFrameId = requestAnimationFrame(animLoop);
+		}
+		animFrameId = requestAnimationFrame(animLoop);
 	}
 
 	function onTimer() {

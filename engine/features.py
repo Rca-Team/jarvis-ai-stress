@@ -853,8 +853,16 @@ def hotword():
         except Exception:
             time.sleep(1)
 
+_background_listeners_started = False
+
 def start_background_listeners():
     """Start all background listeners (Keyboard Hooks, Win32 Global Hotkeys, and Hotwords) for 24/7 realtime listening."""
+    global _background_listeners_started
+    if _background_listeners_started:
+        print("[Background]: Listeners already active.")
+        return
+    _background_listeners_started = True
+
     # 1. Setup keyboard library low-level hook
     setup_keyboard_hooks()
 

@@ -72,16 +72,14 @@ $(document).ready(function () {
     try {
         if ($.fn && $.fn.textillate) {
             $('.text').textillate({
-                loop: true,
+                loop: false,
                 sync: true,
-                in: { effect: "bounceIn" },
-                out: { effect: "bounceOut" }
+                in: { effect: "bounceIn" }
             });
             $('.siri-message').textillate({
-                loop: true,
+                loop: false,
                 sync: true,
-                in: { effect: "fadeInUp", sync: true },
-                out: { effect: "fadeOutUp", sync: true }
+                in: { effect: "fadeInUp", sync: true }
             });
         }
     } catch (e) {
