@@ -134,7 +134,7 @@ COMMON_WINDOWS_APPS = {
     "reddit": "https://www.reddit.com"
 }
 
-def find_and_open_app(app_name):
+def _find_and_open_app_core(app_name):
     """Universal Windows desktop application finder and launcher."""
     import winreg
     import shutil
@@ -275,6 +275,13 @@ def find_and_open_app(app_name):
     except Exception:
         return False
 
+def find_and_open_app(app_name):
+    """Universal Windows desktop application finder and launcher with auto-assistance."""
+    res = _find_and_open_app_core(app_name)
+    if res:
+        activate_assistance_for_app(app_name)
+    return res
+
 def openCommand(query):
     import re
     # Clean leading noise words: "please", "can you", "jarvis", "open", "launch", "start", "the"
@@ -295,6 +302,9 @@ def openCommand(query):
         print(f"[Jarvis App Finder]: Could not find local executable for '{query_clean}'. Performing web search.")
         encoded = quote(query_clean)
         webbrowser.open(f"https://www.google.com/search?q={encoded}")
+    
+    # Automatically switch into Always-On-Top PiP mode for active assistance
+    activate_assistance_for_app(query_clean)
 
 def take_study_note(note_text):
     """Write study notes directly to notes/study_notes.txt and open in Notepad."""
@@ -308,6 +318,7 @@ def take_study_note(note_text):
         f.write(entry)
     try:
         os.system(f'start notepad.exe "{notes_file}"')
+        activate_assistance_for_app("your study notes in Notepad")
     except Exception:
         pass
     speak(f"Study note saved, sir: {note_text.strip()}")
@@ -399,7 +410,9 @@ def open_study_pdf(query):
 
     try:
         os.startfile(target_pdf)
-        speak(f"Opening {os.path.basename(target_pdf)} for your study session, sir.")
+        pdf_name = os.path.basename(target_pdf)
+        speak(f"Opening {pdf_name} for your study session, sir.")
+        activate_assistance_for_app(pdf_name)
         return True
     except Exception as e:
         speak(f"Could not open PDF: {e}")
@@ -411,6 +424,7 @@ def PlayYoutube(query):
     encoded_term = quote(search_term)
     yt_url = f"https://www.youtube.com/results?search_query={encoded_term}"
     webbrowser.open(yt_url)
+    activate_assistance_for_app("YouTube")
 
 import ctypes
 from ctypes import wintypes
@@ -514,6 +528,24 @@ def toggle_pip_mode(enable=None):
 
         speak("Restored to full dashboard.")
         return {"status": "success", "pip_mode": False}
+
+_last_assistance_time = 0
+
+def activate_assistance_for_app(app_name="the application"):
+    """Automatically activate Always-On-Top PiP mode so Jarvis stays visible and on for assistance."""
+    global _last_assistance_time
+    now = time.time()
+    if now - _last_assistance_time < 3.0:
+        return
+    _last_assistance_time = now
+
+    def _run():
+        time.sleep(0.9)  # Allow launched application to render on desktop
+        toggle_pip_mode(True)
+        msg = f"I am right here in Picture-in-Picture mode to assist you with {app_name}, sir. Ask what is on your screen or give any command whenever you need me."
+        print(f"[Jarvis Auto-Assistance]: {msg}")
+        speak(msg)
+    threading.Thread(target=_run, daemon=True).start()
 
 def get_active_window_info():
     """Retrieve title of the currently active user desktop window."""
