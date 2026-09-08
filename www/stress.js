@@ -37,6 +37,20 @@ class StressHUDManager {
         });
         $('#reliefModal').on('hidden.bs.modal', () => {
             this.stopCamFeed();
+            if (typeof ambientSound !== 'undefined' && ambientSound) {
+                ambientSound.stopAll();
+            }
+            if (typeof boxBreathing !== 'undefined' && boxBreathing) {
+                boxBreathing.reset();
+            }
+        });
+        $('#reliefModal .btn-close').on('click', () => {
+            if (typeof ambientSound !== 'undefined' && ambientSound) {
+                ambientSound.stopAll();
+            }
+            if (typeof boxBreathing !== 'undefined' && boxBreathing) {
+                boxBreathing.reset();
+            }
         });
         $(document).on('shown.bs.tab', () => {
             this.checkCamFeedVisibility();
@@ -366,6 +380,9 @@ class BoxBreathingEngine {
                 this.isTwoMinMode = false;
                 this.pause();
                 this.playChime(528);
+                if (typeof ambientSound !== 'undefined' && ambientSound) {
+                    ambientSound.stopAll();
+                }
                 $("#breathingInstruction").html('<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>2-Minute Cool Down Complete!</span> Your stress index is lowered and your mind is refreshed.');
                 $("#startBreathingBtn").html('<i class="bi bi-play-fill"></i> Start Breathing');
             }
@@ -539,13 +556,47 @@ class AmbientSoundGenerator {
         const sound = this.activeSounds[type];
         if (sound) {
             try {
-                if (sound.source) sound.source.stop();
-                if (sound.lfo) sound.lfo.stop();
-                if (sound.oscL) sound.oscL.stop();
-                if (sound.oscR) sound.oscR.stop();
-            } catch (e) {}
+                if (sound.gain && sound.gain.gain && this.audioCtx) {
+                    sound.gain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+                }
+                if (sound.source) {
+                    sound.source.stop();
+                    sound.source.disconnect();
+                }
+                if (sound.lfo) {
+                    sound.lfo.stop();
+                    sound.lfo.disconnect();
+                }
+                if (sound.oscL) {
+                    sound.oscL.stop();
+                    sound.oscL.disconnect();
+                }
+                if (sound.oscR) {
+                    sound.oscR.stop();
+                    sound.oscR.disconnect();
+                }
+            } catch (e) {
+                console.warn("Notice stopping sound:", type, e);
+            }
             this.activeSounds[type] = null;
         }
+
+        // Reset button states in modal & deck
+        $(`.ambient-toggle[data-sound="${type}"]`).removeClass("btn-info").addClass("btn-outline-info").html('<i class="bi bi-play-circle me-1"></i>Play');
+        $(`.quick-ambient-btn[data-sound="${type}"]`).removeClass("active");
+
+        let activeCount = Object.values(this.activeSounds).filter(Boolean).length;
+        if (activeCount === 0) {
+            $("#ambientPlayingBadge").text("All Off").removeClass("bg-info text-dark").addClass("bg-dark text-info");
+        } else {
+            $("#ambientPlayingBadge").text(`${activeCount} Active`).removeClass("bg-dark text-info").addClass("bg-info text-dark");
+        }
+    }
+
+    stopAll() {
+        ['rain', 'ocean', 'alpha'].forEach(type => {
+            this.stopSound(type);
+        });
     }
 }
 
