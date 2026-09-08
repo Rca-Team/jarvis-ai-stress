@@ -107,6 +107,10 @@ $(document).ready(function () {
 
     // mic button click event
     $("#MicBtn").click(function () { 
+        if (typeof eel !== 'undefined' && typeof eel.stop_speaking === 'function') {
+            try { eel.stop_speaking(); } catch (e) {}
+        }
+
         if (typeof voiceManager !== 'undefined' && $("#realtimeVoiceToggle").is(":checked")) {
             voiceManager.startListening();
             return;
@@ -142,6 +146,10 @@ $(document).ready(function () {
 
             console.log("[Hotkey]: Instant hotkey activated:", e.key || e.code);
 
+            if (typeof eel !== 'undefined' && typeof eel.stop_speaking === 'function') {
+                try { eel.stop_speaking(); } catch (e) {}
+            }
+
             // Instant visual UI update
             $("#Oval").attr("hidden", true);
             $("#SiriWave").attr("hidden", false);
@@ -160,6 +168,9 @@ $(document).ready(function () {
                 voiceManager.startListening();
             }
         } else if (e.key === 'Escape') {
+            if (typeof eel !== 'undefined' && typeof eel.stop_speaking === 'function') {
+                try { eel.stop_speaking(); } catch (e) {}
+            }
             if (!$("#SiriWave").is(":hidden")) {
                 $("#SiriWave").attr("hidden", true);
                 $("#Oval").attr("hidden", false);

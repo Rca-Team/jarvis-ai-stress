@@ -442,18 +442,33 @@ def focus_jarvis_window():
     except Exception as e:
         pass
 
-def trigger_hotkey_activation():
-    """Instant real-time trigger for Jarvis when global hotkey is pressed."""
+def trigger_hotkey_activation(force=False):
+    """Instant real-time trigger for Jarvis when global hotkey is pressed.
+    Immediately stops any active speech so Jarvis listens to the user right away (barge-in)."""
     global _is_assistant_listening, _last_activation_time
     curr_time = time.time()
-    if curr_time - _last_activation_time < 0.9:
+    if not force and (curr_time - _last_activation_time < 0.6):
         print("[Global Hotkey]: Debounced duplicate hotkey trigger.")
         return
     _last_activation_time = curr_time
 
+    # STOP any current speech playback immediately on wake word / hotkey!
+    try:
+        from engine.command import stop_speaking
+        stop_speaking()
+    except Exception:
+        pass
+
     if _assistant_busy_lock.locked():
-        print("[Global Hotkey]: Assistant is currently busy handling a request.")
-        return
+        if force:
+            print("[Jarvis Barge-In]: Interrupting previous response to listen immediately...")
+            try:
+                _assistant_busy_lock.release()
+            except Exception:
+                pass
+        else:
+            print("[Global Hotkey]: Assistant is currently busy handling a request.")
+            return
 
     def _run_activation():
         if not _assistant_busy_lock.acquire(blocking=False):
@@ -461,7 +476,7 @@ def trigger_hotkey_activation():
         global _is_assistant_listening
         _is_assistant_listening = True
         try:
-            print("[Global Hotkey]: Instant hotkey activated! Starting assistant listener...")
+            print("[Jarvis Listening]: Interrupted prior speech. Starting assistant listener...")
             focus_jarvis_window()
             try:
                 playAssistantSound()
@@ -491,12 +506,12 @@ def trigger_hotkey_activation():
 
 @eel.expose
 def trigger_hotkey_from_ui():
-    """Allow UI keybindings to trigger the unified hotkey activation workflow."""
-    trigger_hotkey_activation()
+    """Allow UI keybindings to trigger unified hotkey activation with speech interruption."""
+    trigger_hotkey_activation(force=True)
 
-def trigger_hotword_activation():
-    """Trigger Jarvis assistant listening when hotword is detected."""
-    trigger_hotkey_activation()
+def trigger_hotword_activation(force=True):
+    """Trigger Jarvis assistant listening when hotword is detected, interrupting active speech."""
+    trigger_hotkey_activation(force=force)
 
 def setup_keyboard_hooks():
     """Setup ultra-low latency system-wide global hotkeys using keyboard hook."""
@@ -579,16 +594,21 @@ def hotword():
         )
         print("[Hotword]: Porcupine wake-word engine active for 'Jarvis'.")
         while True:
-            if _is_assistant_listening or _assistant_busy_lock.locked():
-                time.sleep(0.5)
+            if _is_assistant_listening:
+                time.sleep(0.15)
                 continue
             keyword = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
             keyword = struct.unpack_from("h" * porcupine.frame_length, keyword)
             keyword_index = porcupine.process(keyword)
             if keyword_index >= 0:
-                print("[Hotword]: Wake word 'Jarvis' detected via Porcupine!")
-                trigger_hotword_activation()
-                time.sleep(2)
+                print("[Hotword]: Wake word 'Jarvis' detected! Halting active speech and listening immediately...")
+                try:
+                    from engine.command import stop_speaking
+                    stop_speaking()
+                except Exception:
+                    pass
+                trigger_hotword_activation(force=True)
+                time.sleep(1.0)
     except Exception as p_err:
         print(f"[Hotword]: Porcupine wake engine fallback ({p_err}). Starting speech recognizer wake listener...")
 
@@ -602,16 +622,16 @@ def hotword():
 
     while True:
         try:
-            if _is_assistant_listening or _assistant_busy_lock.locked():
-                time.sleep(0.5)
+            if _is_assistant_listening:
+                time.sleep(0.2)
                 continue
 
             with sr.Microphone() as source:
-                r.adjust_for_ambient_noise(source, duration=0.3)
+                r.adjust_for_ambient_noise(source, duration=0.2)
                 audio = r.listen(source, phrase_time_limit=3, timeout=5)
 
-            if _is_assistant_listening or _assistant_busy_lock.locked():
-                time.sleep(0.5)
+            if _is_assistant_listening:
+                time.sleep(0.2)
                 continue
 
             try:
@@ -620,7 +640,12 @@ def hotword():
 
                 matched = any(w in text for w in wake_words)
                 if matched:
-                    print(f"[Hotword]: Wake word matched in '{text}'! Activating assistant...")
+                    print(f"[Hotword]: Wake word matched in '{text}'! Halting speech and listening...")
+                    try:
+                        from engine.command import stop_speaking
+                        stop_speaking()
+                    except Exception:
+                        pass
 
                     # Check if user spoke command in same sentence e.g. "Jarvis what time is it"
                     cleaned_cmd = text
@@ -639,9 +664,9 @@ def hotword():
                         from engine.command import allCommands
                         threading.Thread(target=allCommands, kwargs={"message": cleaned_cmd}, daemon=True).start()
                     else:
-                        trigger_hotword_activation()
+                        trigger_hotword_activation(force=True)
 
-                    time.sleep(2)
+                    time.sleep(1.0)
             except sr.UnknownValueError:
                 pass
             except sr.RequestError as req_err:

@@ -1,23 +1,95 @@
+import win32com.client
+import pythoncom
 import pyttsx3
 import speech_recognition as sr
 import eel
 import time
 import threading
 
-_tts_lock = threading.Lock()
+class JarvisVoiceEngine:
+    """High-performance Windows SAPI voice engine with instant barge-in interruption."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._voice = None
+        self._pyttsx_engine = None
+        self._init_voice()
 
-def _get_tts_engine():
-    """Get or create a fresh TTS engine with sapi5."""
-    try:
-        engine = pyttsx3.init('sapi5')
-        voices = engine.getProperty('voices')
-        if voices:
-            engine.setProperty('voice', voices[0].id)
-        engine.setProperty('rate', 174)
-        return engine
-    except Exception as e:
-        print(f"TTS init error: {e}")
-        return None
+    def _init_voice(self):
+        try:
+            pythoncom.CoInitialize()
+            self._voice = win32com.client.Dispatch("SAPI.SpVoice")
+            self._voice.Rate = 1  # Natural conversational rate
+        except Exception as e:
+            print(f"[Jarvis Voice Init Warning]: {e}, falling back to pyttsx3.")
+            try:
+                self._pyttsx_engine = pyttsx3.init('sapi5')
+                voices = self._pyttsx_engine.getProperty('voices')
+                if voices:
+                    self._pyttsx_engine.setProperty('voice', voices[0].id)
+                self._pyttsx_engine.setProperty('rate', 174)
+            except Exception:
+                pass
+
+    def speak(self, text):
+        """Asynchronously speak text. Purges prior speech so output starts immediately."""
+        text = str(text).strip()
+        if not text:
+            return
+        try:
+            pythoncom.CoInitialize()
+            if not self._voice and not self._pyttsx_engine:
+                self._init_voice()
+            if self._voice:
+                # Flag 3 = SVSFPurgeBeforeSpeak (2) | SVSFlagsAsync (1)
+                self._voice.Speak(text, 3)
+                return
+        except Exception as e:
+            print(f"[Jarvis Voice Speak Error]: {e}")
+
+        # Fallback to pyttsx3 in daemon thread if SAPI unavailable
+        if self._pyttsx_engine:
+            def _fallback():
+                try:
+                    self._pyttsx_engine.say(text)
+                    self._pyttsx_engine.runAndWait()
+                except Exception:
+                    pass
+            threading.Thread(target=_fallback, daemon=True).start()
+
+    def stop(self):
+        """Instantly interrupt any active speech (barge-in interruption)."""
+        try:
+            pythoncom.CoInitialize()
+            if self._voice:
+                # SVSFPurgeBeforeSpeak (2): Purges current speech buffer immediately
+                self._voice.Speak("", 2)
+        except Exception as e:
+            print(f"[Jarvis Voice Stop Error]: {e}")
+        if self._pyttsx_engine:
+            try:
+                self._pyttsx_engine.stop()
+            except Exception:
+                pass
+
+    def is_speaking(self):
+        """Check if Jarvis is actively outputting audio."""
+        try:
+            if self._voice:
+                # 2 = SRSEIsSpeaking
+                return self._voice.Status.RunningState == 2
+        except Exception:
+            pass
+        return False
+
+_voice_engine = JarvisVoiceEngine()
+
+@eel.expose
+def stop_speaking():
+    """Immediately halt any active speech playback (barge-in interruption)."""
+    global _voice_engine
+    if _voice_engine:
+        _voice_engine.stop()
+    print("[Jarvis Voice]: Speech interrupted instantly (barge-in).")
 
 def speak(text):
     text = str(text).strip()
@@ -49,32 +121,18 @@ def speak(text):
         except Exception:
             pass
 
-    # TTS audio playback
-    def _speak_thread():
-        with _tts_lock:
-            try:
-                import pythoncom
-                pythoncom.CoInitialize()
-            except Exception:
-                pass
-            try:
-                eng = _get_tts_engine()
-                if eng:
-                    eng.say(text)
-                    eng.runAndWait()
-            except Exception as err:
-                print(f"TTS speak error: {err}")
-
-    t = threading.Thread(target=_speak_thread, daemon=True)
-    t.start()
+    # Speak asynchronously with instant barge-in support
+    global _voice_engine
+    if _voice_engine:
+        _voice_engine.speak(text)
 
 
 def takecommand():
-    # Wait for TTS to finish speaking so the microphone doesn't capture Jarvis's own voice
-    wait_count = 0
-    while _tts_lock.locked() and wait_count < 30:
-        time.sleep(0.1)
-        wait_count += 1
+    # If Jarvis is currently speaking, stop it instantly so microphone gets clean user input
+    global _voice_engine
+    if _voice_engine and _voice_engine.is_speaking():
+        _voice_engine.stop()
+        time.sleep(0.05)
 
     r = sr.Recognizer()
     try:
