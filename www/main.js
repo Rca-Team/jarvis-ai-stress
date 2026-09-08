@@ -15,6 +15,11 @@ $(document).ready(function () {
             eel.init()();
         } catch (e) {
             console.warn("Eel init exception:", e);
+            if (typeof skipToDashboard === 'function') skipToDashboard();
+        }
+    } else {
+        if (typeof skipToDashboard === 'function') {
+            skipToDashboard();
         }
     }
 

@@ -66,19 +66,25 @@ $(document).ready(function () {
         $("#HelloGreet").attr("hidden", false);
     }
 
+    // Instantly skip directly to main Jarvis dashboard
+    function skipToDashboard() {
+        $("#Start").attr("hidden", true);
+        $("#Loader").attr("hidden", true);
+        $("#FaceAuth").attr("hidden", true);
+        $("#FaceAuthSuccess").attr("hidden", true);
+        $("#FaceAuthFail").attr("hidden", true);
+        $("#HelloGreet").attr("hidden", true);
+        $("#Oval").removeClass("animate__animated animate__zoomIn animate__fadeIn");
+        $("#Oval").addClass("animate__animated animate__zoomIn");
+        $("#Oval").attr("hidden", false);
+        if (typeof stressHUD !== 'undefined' && stressHUD) {
+            stressHUD.fetchStatus();
+        }
+    }
+
     // Hide Start Page and display blob
     function hideStart() {
-        $("#Start").attr("hidden", true);
-
-        setTimeout(function () {
-            $("#Oval").removeClass("animate__animated animate__zoomIn animate__fadeIn");
-            $("#Oval").addClass("animate__animated animate__zoomIn");
-            $("#Oval").attr("hidden", false);
-            // Refresh and activate Stress Monitor post-authentication
-            if (typeof stressHUD !== 'undefined' && stressHUD) {
-                stressHUD.fetchStatus();
-            }
-        }, 1000);
+        skipToDashboard();
     }
 
     // Face Auth Failed handler
@@ -124,29 +130,18 @@ $(document).ready(function () {
         }
     }
 
-    // Always-on-Top Picture-in-Picture UI Mode Switcher
+    // Picture-in-Picture mode disabled
     function set_pip_mode_ui(isPip) {
-        if (isPip) {
-            $('body').addClass('pip-mode');
-            $('#pipOverlay').removeClass('d-none');
-            $('#pipToggleBtn').html('<i class="bi bi-arrows-angle-expand me-1"></i>Full Mode');
-        } else {
-            $('body').removeClass('pip-mode');
-            $('#pipOverlay').addClass('d-none');
-            $('#pipToggleBtn').html('<i class="bi bi-pip me-1"></i>PiP Mode');
-        }
+        $('body').removeClass('pip-mode');
+        $('#pipOverlay').addClass('d-none');
     }
 
-    // Bind PiP Mode Toggles
+    // Bind PiP Mode Toggles (disabled)
     $("#pipToggleBtn, #pipExitBtn").click(function () {
-        if (typeof eel !== 'undefined' && eel.eel_toggle_pip) {
-            eel.eel_toggle_pip()();
-        } else {
-            set_pip_mode_ui(!$('body').hasClass('pip-mode'));
-        }
+        set_pip_mode_ui(false);
     });
 
-    // Bind Live Screen Vision Buttons
+    // Bind Live Screen Vision Button
     $("#seeScreenBtn, #pipSeeScreenBtn").click(function () {
         if (typeof eel !== 'undefined' && eel.eel_see_screen) {
             eel.eel_see_screen("What is on my screen and how can you assist me with it?")();
@@ -163,25 +158,6 @@ $(document).ready(function () {
         }
     });
 
-    // PiP Action Buttons
-    $("#pipMicBtn").click(function () {
-        startListening();
-    });
-
-    $("#pipCooldownBtn").click(function () {
-        if (typeof window.startTwoMinuteCoolDown === 'function') {
-            window.startTwoMinuteCoolDown();
-        }
-    });
-
-    // Alt+P shortcut to toggle PiP mode
-    $(document).keydown(function (e) {
-        if (e.altKey && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
-            e.preventDefault();
-            $("#pipToggleBtn").click();
-        }
-    });
-
     // Expose functions to window globally
     window.DisplayMessage = DisplayMessage;
     window.ShowHood = ShowHood;
@@ -191,6 +167,7 @@ $(document).ready(function () {
     window.hideFaceAuth = hideFaceAuth;
     window.hideFaceAuthSuccess = hideFaceAuthSuccess;
     window.hideStart = hideStart;
+    window.skipToDashboard = skipToDashboard;
     window.faceAuthFailed = faceAuthFailed;
     window.resetToAuth = resetToAuth;
     window.showListeningWave = showListeningWave;
@@ -208,6 +185,7 @@ $(document).ready(function () {
             eel.expose(hideFaceAuth);
             eel.expose(hideFaceAuthSuccess);
             eel.expose(hideStart);
+            eel.expose(skipToDashboard);
             eel.expose(faceAuthFailed);
             eel.expose(resetToAuth);
             eel.expose(showListeningWave);

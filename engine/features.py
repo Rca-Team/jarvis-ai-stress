@@ -470,82 +470,39 @@ def focus_jarvis_window():
     except Exception:
         pass
 
+ENABLE_PIP_MODE = False
+
 def toggle_pip_mode(enable=None):
-    """Toggle Always-On-Top Picture-in-Picture floating widget mode in screen corner."""
+    """Picture-in-Picture mode is disabled per user configuration."""
     global _is_pip_mode, _normal_window_rect
-    user32 = ctypes.windll.user32
-
-    if enable is None:
-        _is_pip_mode = not _is_pip_mode
-    else:
-        _is_pip_mode = bool(enable)
-
+    _is_pip_mode = False
     hwnd = find_jarvis_hwnd()
-    screen_w = user32.GetSystemMetrics(0)  # SM_CXSCREEN
-    screen_h = user32.GetSystemMetrics(1)  # SM_CYSCREEN
-
-    HWND_TOPMOST = -1
-    HWND_NOTOPMOST = -2
-    SWP_SHOWWINDOW = 0x0040
-
-    if _is_pip_mode:
-        pip_w = 360
-        pip_h = 470
-        pip_x = max(10, screen_w - pip_w - 20)
-        pip_y = max(10, screen_h - pip_h - 55)
-
-        if hwnd:
-            rect = wintypes.RECT()
-            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-                _normal_window_rect = (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
-            user32.ShowWindow(hwnd, 9)
-            user32.SetWindowPos(hwnd, HWND_TOPMOST, pip_x, pip_y, pip_w, pip_h, SWP_SHOWWINDOW)
-            user32.SetForegroundWindow(hwnd)
-
+    if hwnd:
         try:
-            eel.set_pip_mode_ui(True)()
-        except Exception:
-            try:
-                eel.set_pip_mode_ui(True)
-            except Exception:
-                pass
-
-        speak("Picture-in-picture mode enabled, sir. I am pinned on top and ready to assist you while you navigate your work.")
-        return {"status": "success", "pip_mode": True, "x": pip_x, "y": pip_y, "w": pip_w, "h": pip_h}
-    else:
-        norm_x, norm_y, norm_w, norm_h = _normal_window_rect
-        if hwnd:
-            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, norm_x, norm_y, norm_w, norm_h, SWP_SHOWWINDOW)
+            user32 = ctypes.windll.user32
+            norm_x, norm_y, norm_w, norm_h = _normal_window_rect
+            user32.SetWindowPos(hwnd, -2, norm_x, norm_y, norm_w, norm_h, 0x0040)
             user32.SetForegroundWindow(hwnd)
-
-        try:
-            eel.set_pip_mode_ui(False)()
         except Exception:
-            try:
-                eel.set_pip_mode_ui(False)
-            except Exception:
-                pass
+            pass
 
-        speak("Restored to full dashboard.")
-        return {"status": "success", "pip_mode": False}
+    try:
+        eel.set_pip_mode_ui(False)()
+    except Exception:
+        try:
+            eel.set_pip_mode_ui(False)
+        except Exception:
+            pass
+
+    if enable is True:
+        speak("Picture-in-picture mode is currently disabled, sir.")
+    return {"status": "disabled", "pip_mode": False}
 
 _last_assistance_time = 0
 
 def activate_assistance_for_app(app_name="the application"):
-    """Automatically activate Always-On-Top PiP mode so Jarvis stays visible and on for assistance."""
-    global _last_assistance_time
-    now = time.time()
-    if now - _last_assistance_time < 3.0:
-        return
-    _last_assistance_time = now
-
-    def _run():
-        time.sleep(0.9)  # Allow launched application to render on desktop
-        toggle_pip_mode(True)
-        msg = f"I am right here in Picture-in-Picture mode to assist you with {app_name}, sir. Ask what is on your screen or give any command whenever you need me."
-        print(f"[Jarvis Auto-Assistance]: {msg}")
-        speak(msg)
-    threading.Thread(target=_run, daemon=True).start()
+    """Assistance for opened apps (PiP mode disabled)."""
+    return
 
 def get_active_window_info():
     """Retrieve title of the currently active user desktop window."""

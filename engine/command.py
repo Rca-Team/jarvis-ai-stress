@@ -374,12 +374,10 @@ def _process_all_commands(message):
 
         # 17. Picture-in-Picture (PiP) / Always-on-Top Floating Mode
         elif any(k in query for k in ["pip mode", "picture in picture", "floating mode", "float on top", "minimize to widget", "enter pip"]):
-            from engine.features import toggle_pip_mode
-            toggle_pip_mode(True)
+            speak("Picture-in-picture mode is currently disabled, sir.")
 
         elif any(k in query for k in ["exit pip", "close pip", "restore dashboard", "full screen", "maximize window", "restore window", "normal window"]):
-            from engine.features import toggle_pip_mode
-            toggle_pip_mode(False)
+            speak("You are currently on the full dashboard, sir.")
 
         # 18. Conversational Chatbot (Gemini + Local Academic Mentor)
         else:
