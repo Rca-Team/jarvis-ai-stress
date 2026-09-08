@@ -27,3 +27,6 @@ screenshots/
 # IDE
 .vscode/
 .idea/
+
+# Student Notes
+notes/*.txt

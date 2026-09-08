@@ -239,6 +239,65 @@ def stress_relief_endpoint():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/student/exam_relief', methods=['POST', 'GET'])
+def student_exam_relief_endpoint():
+    try:
+        from engine.features import get_exam_relief_guidance
+        subject = "exam"
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            subject = data.get('subject', 'exam')
+        guidance = get_exam_relief_guidance(subject)
+        return jsonify({'status': 'success', 'data': guidance})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/student/study_note', methods=['POST'])
+def student_study_note_endpoint():
+    try:
+        from engine.features import take_study_note
+        data = request.get_json() or {}
+        note = data.get('note', '')
+        if not note:
+            return jsonify({'status': 'error', 'message': 'Empty note content'}), 400
+        saved = take_study_note(note)
+        return jsonify({'status': 'success', 'entry': saved})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/student/action', methods=['POST'])
+def student_action_endpoint():
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', '')
+        target = data.get('target', '')
+        from engine.features import (capture_study_screenshot, adjust_system_volume,
+                                     manage_media_playback, manage_windows,
+                                     open_study_pdf, find_and_open_app)
+        
+        if action == 'screenshot':
+            success = capture_study_screenshot()
+            return jsonify({'status': 'success', 'captured': success})
+        elif action == 'volume':
+            adjust_system_volume(target)
+            return jsonify({'status': 'success', 'volume': target})
+        elif action == 'media':
+            manage_media_playback(target)
+            return jsonify({'status': 'success', 'media': target})
+        elif action == 'windows':
+            manage_windows(target)
+            return jsonify({'status': 'success', 'window': target})
+        elif action == 'open_pdf':
+            opened = open_study_pdf(target or "chapter")
+            return jsonify({'status': 'success', 'opened': opened})
+        elif action == 'open_app':
+            opened = find_and_open_app(target)
+            return jsonify({'status': 'success', 'opened': opened})
+        else:
+            return jsonify({'status': 'error', 'message': f'Unknown action: {action}'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/stress/video_feed')
 def stress_video_feed():
     """Live MJPEG video stream with real-time biometric HUD overlay."""

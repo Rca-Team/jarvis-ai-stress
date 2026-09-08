@@ -358,11 +358,13 @@
 
                     <!-- Quick Action Suggestion Chips -->
                     <div class="d-flex flex-wrap justify-content-center gap-2 mt-3 mb-4 prompt-chips-container">
-                        <button class="prompt-chip" data-query="what's the weather today"><i class="bi bi-cloud-sun text-info me-1"></i>Weather</button>
-                        <button class="prompt-chip" data-query="play relaxing lo-fi on youtube"><i class="bi bi-youtube text-danger me-1"></i>Lo-Fi YouTube</button>
-                        <button class="prompt-chip" data-query="open whatsapp"><i class="bi bi-whatsapp text-success me-1"></i>WhatsApp</button>
-                        <button class="prompt-chip" data-query="start box breathing"><i class="bi bi-lungs text-primary me-1"></i>Box Breathing</button>
-                        <button class="prompt-chip" data-query="tell me a motivational quote"><i class="bi bi-lightbulb text-warning me-1"></i>Daily Wisdom</button>
+                        <button class="prompt-chip" data-query="exam stress help"><i class="bi bi-mortarboard text-danger me-1"></i>Exam Relief</button>
+                        <button class="prompt-chip" data-query="take note: review exam chapter 2 at 5 PM"><i class="bi bi-pencil-square text-warning me-1"></i>Study Note</button>
+                        <button class="prompt-chip" data-query="take screenshot"><i class="bi bi-camera text-info me-1"></i>Screenshot</button>
+                        <button class="prompt-chip" data-query="open chapter 1"><i class="bi bi-file-earmark-pdf text-primary me-1"></i>Course PDF</button>
+                        <button class="prompt-chip" data-query="play lofi study beats on youtube"><i class="bi bi-youtube text-danger me-1"></i>Lo-Fi YouTube</button>
+                        <button class="prompt-chip" data-query="open vscode"><i class="bi bi-code-slash text-success me-1"></i>VS Code</button>
+                        <button class="prompt-chip" data-query="start box breathing"><i class="bi bi-lungs text-info me-1"></i>Box Breathing</button>
                         <button class="prompt-chip" data-query="system status check"><i class="bi bi-cpu text-info me-1"></i>Diagnostics</button>
                     </div>
 
@@ -774,6 +776,9 @@
                             <button class="nav-link active relief-tab-btn" id="breathing-tab" data-bs-toggle="pill" data-bs-target="#breathingContent" type="button" role="tab"><i class="bi bi-lungs me-1"></i>Guided Box Breathing</button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link relief-tab-btn" id="exam-tab" data-bs-toggle="pill" data-bs-target="#examContent" type="button" role="tab"><i class="bi bi-mortarboard-fill text-warning me-1"></i>Exam Stress Copilot</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link relief-tab-btn" id="ambient-tab" data-bs-toggle="pill" data-bs-target="#ambientContent" type="button" role="tab"><i class="bi bi-soundwave me-1"></i>Ambient Soundscapes</button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -785,6 +790,57 @@
                     </ul>
 
                     <div class="tab-content" id="reliefTabsContent">
+                        <!-- Exam Stress & Study Copilot Tab -->
+                        <div class="tab-pane fade" id="examContent" role="tabpanel">
+                            <div class="row g-3">
+                                <!-- AI Cognitive Reframing Card -->
+                                <div class="col-md-7">
+                                    <div class="p-3 rounded bg-dark bg-opacity-75 border border-info h-100">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 class="text-info mb-0"><i class="bi bi-shield-check me-2"></i>Exam Panic & Anxiety Reset</h6>
+                                            <span class="badge bg-info text-dark">AI Grounding</span>
+                                        </div>
+                                        <div class="input-group mb-3">
+                                            <input type="text" id="examSubjectInput" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Enter subject (e.g. Physics, Calculus, Finals)...">
+                                            <button class="btn btn-sm btn-info" id="getExamAdviceBtn"><i class="bi bi-magic me-1"></i>Get AI Advice</button>
+                                        </div>
+                                        <div id="examAdviceBox" class="p-3 rounded bg-black bg-opacity-50 border border-secondary text-light small mb-3" style="min-height: 110px;">
+                                            <i class="bi bi-quote text-info fs-5 me-1"></i><span id="examAdviceText">Exam pressure is a temporary reaction, not your limitation. Pause your thoughts, take a slow 4-second breath, and tackle one concept at a time.</span>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-warning w-100" id="quick2mCalmBtn"><i class="bi bi-stopwatch me-1"></i>2-Min Emergency Calm</button>
+                                            <button class="btn btn-sm btn-outline-info w-100" id="quickActiveRecallBtn"><i class="bi bi-lightbulb me-1"></i>Active Recall Tip</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pomodoro & Quick Note Card -->
+                                <div class="col-md-5">
+                                    <div class="p-3 rounded bg-dark bg-opacity-75 border border-secondary h-100 d-flex flex-column">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="text-warning mb-0"><i class="bi bi-hourglass-split me-2"></i>Study Focus Timer</h6>
+                                            <span id="pomodoroBadge" class="badge bg-warning text-dark">25m Focus</span>
+                                        </div>
+                                        <div class="text-center my-auto py-2">
+                                            <div id="pomodoroTimeDisplay" class="display-5 fw-bold text-white font-monospace">25:00</div>
+                                            <div class="text-white-50 x-small" id="pomodoroStateLabel">Ready to Focus</div>
+                                            <div class="d-flex justify-content-center gap-2 mt-2">
+                                                <button class="btn btn-xs btn-outline-success px-3 py-1" id="pomodoroStartBtn"><i class="bi bi-play-fill"></i> Start</button>
+                                                <button class="btn btn-xs btn-outline-warning px-3 py-1" id="pomodoroPauseBtn"><i class="bi bi-pause-fill"></i> Pause</button>
+                                                <button class="btn btn-xs btn-outline-danger px-2 py-1" id="pomodoroResetBtn"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="pt-2 border-top border-secondary mt-2">
+                                            <label class="text-white-50 x-small mb-1"><i class="bi bi-journal-text me-1"></i>Instant Study Note (Notepad)</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" id="modalQuickNoteInput" class="form-control bg-dark text-light border-secondary" placeholder="Type key reminder...">
+                                                <button class="btn btn-outline-info" id="modalSaveNoteBtn"><i class="bi bi-save"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Guided Breathing Tab -->
                         <div class="tab-pane fade show active text-center" id="breathingContent" role="tabpanel">
                             <div class="breathing-visual-container my-4">

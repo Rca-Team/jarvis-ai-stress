@@ -498,13 +498,160 @@ class AmbientSoundGenerator {
     }
 }
 
+// Student Exam Stress & Pomodoro Manager
+class ExamStressManager {
+    constructor() {
+        this.timer = null;
+        this.timeLeft = 25 * 60; // 25 minutes
+        this.isRunning = false;
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        // AI Advice Button
+        $("#getExamAdviceBtn").click(() => {
+            const subject = $("#examSubjectInput").val().trim() || "my upcoming exam";
+            this.fetchExamAdvice(subject);
+        });
+
+        // 2-Min Emergency Calm Button
+        $("#quick2mCalmBtn").click(() => {
+            $("#examAdviceText").text("Emergency 2-minute calming activated. Inhale 4s, hold 7s, exhale 8s. Lo-Fi rain sound started.");
+            if (typeof ambientSound !== 'undefined' && ambientSound) {
+                const btn = $('.ambient-toggle[data-sound="rain"]');
+                if (!ambientSound.activeSounds.rain) {
+                    ambientSound.toggleSound("rain", btn);
+                }
+            }
+            $("#breathing-tab").trigger("click");
+            if (typeof boxBreathing !== 'undefined' && boxBreathing) {
+                boxBreathing.start();
+            }
+        });
+
+        // Active Recall Tip Button
+        $("#quickActiveRecallBtn").click(() => {
+            const tips = [
+                "Feynman Technique: Explain this chapter out loud in simple words without looking at the book.",
+                "Blurting Method: Spend 5 minutes writing everything you remember from memory on a blank page, then check your gaps in red ink.",
+                "Flashcard 3-Box Rule: Test difficult questions daily, medium questions every 3 days, and easy questions weekly.",
+                "Interleaving: Don't spend 6 hours on one subject. Switch topics every 50 minutes to keep neural connections sharp."
+            ];
+            const chosen = tips[Math.floor(Math.random() * tips.length)];
+            $("#examAdviceText").html(`<strong>Active Recall Strategy:</strong> ${chosen}`);
+        });
+
+        // Pomodoro Timer Controls
+        $("#pomodoroStartBtn").click(() => this.startPomodoro());
+        $("#pomodoroPauseBtn").click(() => this.pausePomodoro());
+        $("#pomodoroResetBtn").click(() => this.resetPomodoro());
+
+        // Modal Note Saver
+        $("#modalSaveNoteBtn").click(() => {
+            const note = $("#modalQuickNoteInput").val().trim();
+            if (!note) return;
+            if (typeof eel !== 'undefined' && eel.eel_take_study_note) {
+                eel.eel_take_study_note(note);
+            } else {
+                fetch('/api/student/study_note', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: note })
+                });
+            }
+            $("#modalQuickNoteInput").val("");
+            $("#modalQuickNoteInput").attr("placeholder", "Saved to Notepad!");
+            setTimeout(() => {
+                $("#modalQuickNoteInput").attr("placeholder", "Type key reminder...");
+            }, 2500);
+        });
+    }
+
+    fetchExamAdvice(subject) {
+        $("#examAdviceText").html('<div class="spinner-border spinner-border-sm text-info me-2"></div>Generating tailored cognitive relief strategy...');
+        if (typeof eel !== 'undefined' && eel.get_exam_relief_guidance) {
+            eel.get_exam_relief_guidance(subject)(res => {
+                if (res && res.advice) {
+                    const formatted = res.advice.replace(/\n/g, '<br>');
+                    $("#examAdviceText").html(formatted);
+                }
+            });
+        } else {
+            fetch('/api/student/exam_relief', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject: subject })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success' && d.data && d.data.advice) {
+                    const formatted = d.data.advice.replace(/\n/g, '<br>');
+                    $("#examAdviceText").html(formatted);
+                }
+            })
+            .catch(() => {
+                $("#examAdviceText").text("Exam anxiety is normal. Take 3 deep breaths. Break your revision into small 10-minute micro-goals.");
+            });
+        }
+    }
+
+    startPomodoro() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        $("#pomodoroStateLabel").text("Focus Session Active");
+        $("#pomodoroBadge").text("Focusing...").removeClass("bg-warning").addClass("bg-success");
+        this.timer = setInterval(() => {
+            if (this.timeLeft > 0) {
+                this.timeLeft--;
+                this.updatePomodoroDisplay();
+            } else {
+                this.completePomodoro();
+            }
+        }, 1000);
+    }
+
+    pausePomodoro() {
+        this.isRunning = false;
+        clearInterval(this.timer);
+        $("#pomodoroStateLabel").text("Session Paused");
+        $("#pomodoroBadge").text("Paused").removeClass("bg-success").addClass("bg-warning");
+    }
+
+    resetPomodoro() {
+        this.pausePomodoro();
+        this.timeLeft = 25 * 60;
+        this.updatePomodoroDisplay();
+        $("#pomodoroStateLabel").text("Ready to Focus");
+        $("#pomodoroBadge").text("25m Focus");
+    }
+
+    completePomodoro() {
+        this.resetPomodoro();
+        $("#pomodoroStateLabel").text("Session Complete! Take 5 min break.");
+        if (typeof eel !== 'undefined' && eel.playAssistantSound) {
+            try { eel.playAssistantSound(); } catch (e) {}
+        }
+        alert("Study Session Complete! Time for a 5-minute eye and breathing break.");
+    }
+
+    updatePomodoroDisplay() {
+        const mins = Math.floor(this.timeLeft / 60);
+        const secs = this.timeLeft % 60;
+        const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        $("#pomodoroTimeDisplay").text(formatted);
+    }
+}
+
 // Global Instances
 let stressHUD = null;
 let boxBreathing = null;
 let ambientSound = null;
+let examStress = null;
 
 $(document).ready(function () {
     stressHUD = new StressHUDManager();
     boxBreathing = new BoxBreathingEngine();
     ambientSound = new AmbientSoundGenerator();
+    examStress = new ExamStressManager();
 });
+

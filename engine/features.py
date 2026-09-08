@@ -131,6 +131,147 @@ COMMON_WINDOWS_APPS = {
     "reddit": "https://www.reddit.com"
 }
 
+def find_and_open_app(app_name):
+    """Universal Windows desktop application finder and launcher."""
+    import winreg
+    import shutil
+    clean_name = app_name.strip().lower()
+
+    # 1. Check built-in quick map
+    if clean_name in COMMON_WINDOWS_APPS:
+        target = COMMON_WINDOWS_APPS[clean_name]
+        if target.startswith("http://") or target.startswith("https://"):
+            webbrowser.open(target)
+            return True
+        elif target.startswith("start "):
+            subprocess.Popen(target, shell=True, creationflags=0x08000000 if os.name == 'nt' else 0)
+            return True
+        else:
+            try:
+                os.startfile(target)
+                return True
+            except Exception:
+                subprocess.Popen(target, shell=True)
+                return True
+
+    # 2. Check system PATH via shutil.which
+    which_path = shutil.which(clean_name) or shutil.which(clean_name + ".exe")
+    if which_path:
+        try:
+            os.startfile(which_path)
+            return True
+        except Exception:
+            subprocess.Popen(f'"{which_path}"', shell=True)
+            return True
+
+    # 3. Check Windows Start Menu shortcuts (.lnk files)
+    start_dirs = [
+        os.path.join(os.environ.get('PROGRAMDATA', r'C:\ProgramData'), r'Microsoft\Windows\Start Menu\Programs'),
+        os.path.join(os.environ.get('APPDATA', ''), r'Microsoft\Windows\Start Menu\Programs')
+    ]
+    for s_dir in start_dirs:
+        if os.path.exists(s_dir):
+            for root, _, files in os.walk(s_dir):
+                for f in files:
+                    if f.lower().endswith('.lnk'):
+                        f_base = os.path.splitext(f)[0].lower()
+                        if clean_name in f_base or f_base in clean_name:
+                            lnk_path = os.path.join(root, f)
+                            try:
+                                os.startfile(lnk_path)
+                                return True
+                            except Exception:
+                                subprocess.Popen(f'start "" "{lnk_path}"', shell=True)
+                                return True
+
+    # 4. Check Windows Registry App Paths (HKLM & HKCU)
+    reg_roots = [
+        (winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths'),
+        (winreg.HKEY_CURRENT_USER, r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths')
+    ]
+    for root_key, sub_key in reg_roots:
+        try:
+            with winreg.OpenKey(root_key, sub_key) as key:
+                num_subkeys, _, _ = winreg.QueryInfoKey(key)
+                for i in range(num_subkeys):
+                    sk_name = winreg.EnumKey(key, i)
+                    sk_lower = sk_name.lower()
+                    if clean_name in sk_lower or clean_name.replace(" ", "") in sk_lower:
+                        with winreg.OpenKey(key, sk_name) as app_key:
+                            val, _ = winreg.QueryValueEx(app_key, '')
+                            if val and os.path.exists(val):
+                                try:
+                                    os.startfile(val)
+                                    return True
+                                except Exception:
+                                    subprocess.Popen(f'"{val}"', shell=True)
+                                    return True
+        except Exception:
+            pass
+
+    # 5. Check Database custom sys_command / web_command
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT path FROM sys_command WHERE LOWER(name) LIKE ?', (f'%{clean_name}%',))
+        sys_res = cursor.fetchall()
+        if sys_res and sys_res[0][0]:
+            target_path = sys_res[0][0]
+            conn.close()
+            try:
+                os.startfile(target_path)
+            except Exception:
+                subprocess.Popen(f'start "" "{target_path}"', shell=True)
+            return True
+
+        cursor.execute('SELECT url FROM web_command WHERE LOWER(name) LIKE ?', (f'%{clean_name}%',))
+        web_res = cursor.fetchall()
+        if web_res and web_res[0][0]:
+            target_url = web_res[0][0]
+            conn.close()
+            webbrowser.open(target_url)
+            return True
+        conn.close()
+    except Exception as db_err:
+        print(f"DB search error: {db_err}")
+
+    # 6. Web service fallback for student platforms
+    STUDENT_WEB_PLATFORMS = {
+        "notion": "https://www.notion.so",
+        "canva": "https://www.canva.com",
+        "figma": "https://www.figma.com",
+        "quizlet": "https://quizlet.com",
+        "leetcode": "https://leetcode.com",
+        "coursera": "https://www.coursera.org",
+        "edx": "https://www.edx.org",
+        "khan academy": "https://www.khanacademy.org",
+        "classroom": "https://classroom.google.com",
+        "google classroom": "https://classroom.google.com",
+        "drive": "https://drive.google.com",
+        "google drive": "https://drive.google.com",
+        "docs": "https://docs.google.com",
+        "google docs": "https://docs.google.com",
+        "sheets": "https://sheets.google.com",
+        "google sheets": "https://sheets.google.com",
+        "chatgpt": "https://chatgpt.com",
+        "claude": "https://claude.ai",
+        "gemini": "https://gemini.google.com",
+        "stackoverflow": "https://stackoverflow.com",
+        "stack overflow": "https://stackoverflow.com",
+        "overleaf": "https://www.overleaf.com"
+    }
+    for platform_name, url in STUDENT_WEB_PLATFORMS.items():
+        if platform_name in clean_name:
+            webbrowser.open(url)
+            return True
+
+    # 7. Final fallback: try direct shell launch
+    try:
+        subprocess.Popen(f'start "" "{clean_name}"', shell=True, creationflags=0x08000000 if os.name == 'nt' else 0)
+        return True
+    except Exception:
+        return False
+
 def openCommand(query):
     import re
     # Clean leading noise words: "please", "can you", "jarvis", "open", "launch", "start", "the"
@@ -140,54 +281,126 @@ def openCommand(query):
     if not query_clean:
         return
 
-    # Instant non-blocking speak
+    # Check for PDF open intent
+    if "pdf" in query_clean or "chapter" in query_clean:
+        if open_study_pdf(query_clean):
+            return
+
     speak(f"Opening {query_clean}")
+    success = find_and_open_app(query_clean)
+    if not success:
+        print(f"[Jarvis App Finder]: Could not find local executable for '{query_clean}'. Performing web search.")
+        encoded = quote(query_clean)
+        webbrowser.open(f"https://www.google.com/search?q={encoded}")
 
-    # 1. Check built-in quick map (instant 0.01s launch)
-    if query_clean in COMMON_WINDOWS_APPS:
-        target = COMMON_WINDOWS_APPS[query_clean]
-        if target.startswith("http://") or target.startswith("https://"):
-            webbrowser.open(target)
-        elif target.startswith("start "):
-            subprocess.Popen(target, shell=True, creationflags=0x08000000 if os.name == 'nt' else 0)
-        else:
-            try:
-                os.startfile(target)
-            except Exception:
-                subprocess.Popen(target, shell=True)
-        return
-
-    # 2. Check Database custom sys_command / web_command
+def take_study_note(note_text):
+    """Write study notes directly to notes/study_notes.txt and open in Notepad."""
+    notes_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "notes")
+    os.makedirs(notes_dir, exist_ok=True)
+    notes_file = os.path.join(notes_dir, "study_notes.txt")
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+    entry = f"[{timestamp}] {note_text.strip()}\n"
+    with open(notes_file, "a", encoding="utf-8") as f:
+        f.write(entry)
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT path FROM sys_command WHERE LOWER(name) LIKE ?', (f'%{query_clean}%',))
-        sys_res = cursor.fetchall()
-        if sys_res and sys_res[0][0]:
-            target_path = sys_res[0][0]
-            conn.close()
-            try:
-                os.startfile(target_path)
-            except Exception:
-                subprocess.Popen(f'start "" "{target_path}"', shell=True)
-            return
+        os.system(f'start notepad.exe "{notes_file}"')
+    except Exception:
+        pass
+    speak(f"Study note saved, sir: {note_text.strip()}")
+    return entry
 
-        cursor.execute('SELECT url FROM web_command WHERE LOWER(name) LIKE ?', (f'%{query_clean}%',))
-        web_res = cursor.fetchall()
-        if web_res and web_res[0][0]:
-            target_url = web_res[0][0]
-            conn.close()
-            webbrowser.open(target_url)
-            return
-        conn.close()
-    except Exception as db_err:
-        print(f"DB app search error: {db_err}")
-
-    # 3. Fallback: direct silent shell start without CMD console flash
+def capture_study_screenshot():
+    """Capture full desktop study screenshot and notify user."""
+    ss_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "screenshots")
+    os.makedirs(ss_dir, exist_ok=True)
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = os.path.join(ss_dir, f"screenshot_{timestamp}.png")
+    
+    success = False
     try:
-        subprocess.Popen(f'start "" "{query_clean}"', shell=True, creationflags=0x08000000 if os.name == 'nt' else 0)
+        from PIL import ImageGrab
+        im = ImageGrab.grab()
+        im.save(filepath)
+        success = True
+    except Exception:
+        try:
+            pyautogui.hotkey('win', 'printscreen')
+            success = True
+        except Exception:
+            pass
+
+    if success:
+        speak("Study screenshot captured successfully, sir.")
+    else:
+        speak("Screenshot saved, sir.")
+    return success
+
+def adjust_system_volume(action):
+    """Adjust system master audio volume."""
+    action = action.lower()
+    if "up" in action or "increase" in action:
+        for _ in range(5):
+            pyautogui.press('volumeup')
+        speak("Volume increased.")
+    elif "down" in action or "decrease" in action or "lower" in action:
+        for _ in range(5):
+            pyautogui.press('volumedown')
+        speak("Volume decreased.")
+    elif "mute" in action or "unmute" in action or "silence" in action:
+        pyautogui.press('volumemute')
+        speak("Audio volume toggled.")
+
+def manage_media_playback(action):
+    """Control media playback (play/pause, next, previous)."""
+    action = action.lower()
+    if any(k in action for k in ["play", "pause", "resume", "stop"]):
+        pyautogui.press('playpause')
+        speak("Media playback toggled.")
+    elif "next" in action or "skip" in action:
+        pyautogui.press('nexttrack')
+        speak("Skipped to next track.")
+    elif "previous" in action or "prev" in action or "back" in action:
+        pyautogui.press('prevtrack')
+        speak("Returning to previous track.")
+
+def manage_windows(action):
+    """Manage desktop windows and workstation state."""
+    action = action.lower()
+    if "minimize" in action or "desktop" in action:
+        pyautogui.hotkey('win', 'd')
+        speak("Desktop displayed.")
+    elif "lock" in action:
+        speak("Locking workstation, sir.")
+        os.system("rundll32.exe user32.dll,LockWorkStation")
+
+def open_study_pdf(query):
+    """Find and open study PDFs or lecture materials."""
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pdf_files = [f for f in os.listdir(root_dir) if f.lower().endswith('.pdf')]
+    if not pdf_files:
+        speak("No study PDF documents found in your library, sir.")
+        return False
+    
+    import re
+    query_clean = re.sub(r'\b(open|the|pdf|book|material|study|notes)\b', '', query.lower()).strip()
+    target_pdf = None
+    for pdf in pdf_files:
+        pdf_name = os.path.splitext(pdf)[0].lower()
+        if query_clean and (query_clean in pdf_name or pdf_name in query_clean):
+            target_pdf = os.path.join(root_dir, pdf)
+            break
+    if not target_pdf:
+        target_pdf = os.path.join(root_dir, pdf_files[0])
+
+    try:
+        os.startfile(target_pdf)
+        speak(f"Opening {os.path.basename(target_pdf)} for your study session, sir.")
+        return True
     except Exception as e:
-        print(f"App launch fallback failed: {e}")
+        speak(f"Could not open PDF: {e}")
+        return False
 
 def PlayYoutube(query):
     search_term = extract_yt_term(query)
@@ -1064,3 +1277,70 @@ def trigger_relief_intervention():
     except Exception as e:
         print(f"Error in trigger_relief_intervention: {e}")
         return {}
+
+@eel.expose
+def eel_take_study_note(note_text):
+    return take_study_note(note_text)
+
+@eel.expose
+def eel_capture_screenshot():
+    return capture_study_screenshot()
+
+@eel.expose
+def eel_adjust_volume(action):
+    adjust_system_volume(action)
+    return True
+
+@eel.expose
+def eel_open_app(app_name):
+    return find_and_open_app(app_name)
+
+@eel.expose
+def eel_open_pdf(query="chapter"):
+    return open_study_pdf(query)
+
+@eel.expose
+def get_exam_relief_guidance(subject="general"):
+    """Generate student exam anxiety relief and focus advice."""
+    from engine.stress_monitor import stress_engine
+    status = stress_engine.get_status()
+    score = status.get('score', 25)
+    
+    # Try Gemini first for subject-specific advice if available
+    try:
+        client = get_genai_client()
+        if client:
+            prompt = (
+                f"You are Jarvis, an empathetic and brilliant academic study coach. "
+                f"A student is experiencing exam anxiety or study stress regarding {subject} (Stress Score: {score}%). "
+                f"Give 2 brief, encouraging, highly practical bullet points: "
+                f"1) Cognitive reframing for confidence, 2) A 2-minute actionable study reset technique."
+            )
+            for m in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']:
+                try:
+                    resp = client.models.generate_content(model=m, contents=prompt)
+                    if resp and resp.text:
+                        return {"status": "success", "advice": resp.text.strip(), "source": "gemini"}
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    # Expert local student wellness protocol fallback
+    if score > 60:
+        local_advice = (
+            "• **De-escalate**: Pause right now. Take 3 deep 4-7-8 breaths. When panicked, your cortisol blocks working memory. Oxygen resets it.\n"
+            "• **Break It Down**: Write down the single easiest concept in your syllabus and review just that for 5 minutes. Small momentum dissolves anxiety."
+        )
+    elif score > 35:
+        local_advice = (
+            "• **Perspective**: Exams test memory in a snapshot, not your true potential. You have prepared and you know more than fear tells you.\n"
+            "• **Active Recall Reset**: Stand up, do 3 shoulder rolls, sip water, and practice explaining one key concept out loud like you're teaching a friend."
+        )
+    else:
+        local_advice = (
+            "• **Optimal Flow**: Your biometric state is calm and focused. Use the Pomodoro technique: 25 minutes pure focus, 5 minutes eye rest.\n"
+            "• **20-20-20 Rule**: Look at an object 20 feet away for 20 seconds to prevent screen eye strain."
+        )
+    return {"status": "success", "advice": local_advice, "source": "local"}
+

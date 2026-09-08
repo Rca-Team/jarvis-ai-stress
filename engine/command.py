@@ -185,29 +185,67 @@ def allCommands(message=1):
             break
 
     try:
-        # 1. YouTube & Music playback intent
-        if ("play" in query and "youtube" in query) or query.startswith("play ") or "on youtube" in query:
+        # 1. Study Notes Intent
+        if any(query.startswith(k) for k in ["take note", "write note", "note down", "add note", "make note"]):
+            import re
+            note_content = re.sub(r'^(?:take\s+note|write\s+note|note\s+down|add\s+note|make\s+note)(?:\s+that|\s+to|\s*:|\s+)?', '', query).strip()
+            if not note_content:
+                speak("What would you like me to note down, sir?")
+                note_content = takecommand()
+            if note_content:
+                from engine.features import take_study_note
+                take_study_note(note_content)
+            else:
+                speak("Note creation cancelled.")
+
+        # 2. Screenshot Capture Intent
+        elif any(k in query for k in ["take screenshot", "capture screen", "screenshot", "save screen", "screen grab"]):
+            from engine.features import capture_study_screenshot
+            capture_study_screenshot()
+
+        # 3. System Volume Controls
+        elif any(k in query for k in ["volume up", "volume down", "mute", "unmute", "increase volume", "decrease volume", "lower volume"]):
+            from engine.features import adjust_system_volume
+            adjust_system_volume(query)
+
+        # 4. Media Playback Controls
+        elif any(k in query for k in ["pause music", "resume music", "next track", "previous track", "next song", "previous song", "stop music"]):
+            from engine.features import manage_media_playback
+            manage_media_playback(query)
+
+        # 5. Window & Desktop Management
+        elif any(k in query for k in ["minimize all", "show desktop", "minimize windows", "lock screen", "lock workstation"]):
+            from engine.features import manage_windows
+            manage_windows(query)
+
+        # 6. Study PDF & Lecture Material
+        elif any(k in query for k in ["open chapter", "open study pdf", "open notes", "open course book", "open lecture"]):
+            from engine.features import open_study_pdf
+            open_study_pdf(query)
+
+        # 7. YouTube & Music playback intent
+        elif ("play" in query and "youtube" in query) or query.startswith("play ") or "on youtube" in query:
             from engine.features import PlayYoutube
             PlayYoutube(query)
 
-        # 2. Time query intent
+        # 8. Time query intent
         elif any(phrase in query for phrase in ["what time", "current time", "tell me the time", "what's the time", "what is the time"]):
             from datetime import datetime
             time_now = datetime.now().strftime("%I:%M %p")
             speak(f"The current time is {time_now}, sir.")
 
-        # 3. Date / Day query intent
+        # 9. Date / Day query intent
         elif any(phrase in query for phrase in ["what date", "current date", "today's date", "what is the date", "which day is today", "what day is it"]):
             from datetime import datetime
             date_now = datetime.now().strftime("%A, %B %d, %Y")
             speak(f"Today is {date_now}, sir.")
 
-        # 4. Open applications or URLs
+        # 10. Open applications or URLs (Universal Scanner)
         elif "open" in query or "launch" in query:
             from engine.features import openCommand
             openCommand(query)
 
-        # 5. Contacts & Messaging
+        # 11. Contacts & Messaging
         elif "send message" in query or "phone call" in query or "video call" in query:
             from engine.features import findContact, whatsApp, makeCall, sendMessage
             contact_no, name = findContact(query)
@@ -231,7 +269,16 @@ def allCommands(message=1):
             else:
                 speak("I could not find that contact in your database, sir.")
 
-        # 6. Stress & Wellness commands
+        # 12. Exam Stress Counseling & Relief
+        elif any(k in query for k in ["exam stress", "exam anxiety", "panic", "stressed about", "anxious", "can't focus", "burnout", "study burnout", "tired from study"]):
+            from engine.features import get_exam_relief_guidance, trigger_relief_intervention
+            # Trigger visual modal
+            trigger_relief_intervention()
+            guidance = get_exam_relief_guidance(query)
+            clean_speech = guidance.get("advice", "").replace("•", "").replace("**", "")
+            speak(f"I hear you, sir. Let us reset. {clean_speech}")
+
+        # 13. General Stress & Wellness commands
         elif any(k in query for k in ["stress", "relief", "breathing", "relax", "fatigue", "tired"]):
             from engine.features import trigger_relief_intervention, start_stress_monitor, stop_stress_monitor
             if "start" in query or "enable" in query or "turn on" in query:
@@ -241,7 +288,7 @@ def allCommands(message=1):
             else:
                 trigger_relief_intervention()
 
-        # 7. Conversational Chatbot
+        # 14. Conversational Chatbot (Gemini + Local Academic Mentor)
         else:
             from engine.features import chatBot
             chatBot(query)
