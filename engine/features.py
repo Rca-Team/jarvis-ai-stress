@@ -1271,11 +1271,60 @@ def get_stress_history():
         return []
 
 @eel.expose
-def trigger_relief_intervention():
+def report_stress_and_suggestions():
+    """Report stress status and personalized recommendations ONLY when user queries for it."""
     try:
         from engine.stress_monitor import stress_engine
         status = stress_engine.get_status()
-        speak(f"Opening Relief Center. Your current stress index is {status['score']} percent. Let's take a deep breath together.")
+        score = status.get('score', 20)
+        state = status.get('state', 'Normal')
+        advice = status.get('advice', 'Keep maintaining regular study pauses.')
+
+        msg = f"Sir, your current stress level is at {score} percent, indicating a {state.lower()} state. My suggestion: {advice}. Would you like to start a 2-minute cool down?"
+        print(f"[Jarvis Stress Report]: {msg}")
+        speak(msg)
+        return {"status": "success", "score": score, "state": state, "advice": advice}
+    except Exception as e:
+        msg = "I am unable to read your biometric stress telemetry right now, sir."
+        speak(msg)
+        return {"status": "error", "message": str(e)}
+
+@eel.expose
+def start_two_minute_cooldown():
+    """Trigger a dedicated 2-minute relaxation cool down sequence."""
+    try:
+        from engine.stress_monitor import stress_engine
+        status = stress_engine.get_status()
+        score = status.get('score', 20)
+        speak("Starting your 2-minute stress cool down. Close your eyes, inhale deeply for 4 seconds, hold for 7, and exhale slowly for 8. Let all exam pressure release.")
+        
+        try:
+            eel.ui_start_two_minute_cooldown()()
+        except Exception:
+            try:
+                eel.ui_start_two_minute_cooldown()
+            except Exception:
+                pass
+        return {"status": "success", "duration_seconds": 120, "score": score}
+    except Exception as e:
+        print(f"Error starting 2-minute cool down: {e}")
+        return {"status": "error", "message": str(e)}
+
+@eel.expose
+def trigger_relief_intervention(speak_alert=False):
+    """Open Relief Center UI without unprompted speech unless explicitly requested."""
+    try:
+        from engine.stress_monitor import stress_engine
+        status = stress_engine.get_status()
+        if speak_alert:
+            speak(f"Opening Relief Center. Your current stress index is {status['score']} percent. Let's take a deep breath together.")
+        try:
+            eel.ui_open_relief_center()()
+        except Exception:
+            try:
+                eel.ui_open_relief_center()
+            except Exception:
+                pass
         return status
     except Exception as e:
         print(f"Error in trigger_relief_intervention: {e}")

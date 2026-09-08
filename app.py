@@ -252,6 +252,24 @@ def student_exam_relief_endpoint():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/student/cooldown', methods=['POST', 'GET'])
+def student_cooldown_endpoint():
+    try:
+        from engine.features import start_two_minute_cooldown
+        result = start_two_minute_cooldown()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/student/stress_suggestion', methods=['POST', 'GET'])
+def student_stress_suggestion_endpoint():
+    try:
+        from engine.features import report_stress_and_suggestions
+        result = report_stress_and_suggestions()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/student/study_note', methods=['POST'])
 def student_study_note_endpoint():
     try:

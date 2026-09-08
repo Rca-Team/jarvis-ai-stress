@@ -481,10 +481,6 @@ class StressMonitorEngine:
                                 else:
                                     self.high_stress_counter = 0
 
-                                if self.high_stress_counter >= 1 and (now - self.last_intervention_time >= 90):
-                                    self.last_intervention_time = time.time()
-                                    self.trigger_proactive_intervention(ai_score, ai_advice)
-
                         threading.Thread(target=_ai_analyze, args=(pil_img,), daemon=True).start()
 
                 else:
@@ -493,12 +489,8 @@ class StressMonitorEngine:
                 # ── Compute real-time stress score ──
                 self.compute_realtime_score(self.face_detected, posture_stress, tension_stress, self.estimated_hr)
 
-                # ── Auto-Intervention check when real-time stress exceeds 40% ──
-                if self.current_score > 40 and (now - self.last_intervention_time >= 90):
-                    self.last_intervention_time = now
-                    def _auto_help():
-                        self.trigger_proactive_intervention(self.current_score, self.current_advice)
-                    threading.Thread(target=_auto_help, daemon=True).start()
+                # Passive telemetry only: No automatic speech interruptions in the background.
+                # Suggestions and 2-min cool downs are provided only when the user explicitly requests them.
 
                 # ── Draw HUD overlay and store annotated frame ──
                 annotated = self.draw_hud_overlay(frame, faces)

@@ -269,26 +269,37 @@ def allCommands(message=1):
             else:
                 speak("I could not find that contact in your database, sir.")
 
-        # 12. Exam Stress Counseling & Relief
+        # 12. 2-Minute Stress Cool Down Intent
+        elif any(k in query for k in ["cool down", "2 min cool down", "2 minute cool down", "two minute cool down", "cooldown", "calm down", "emergency calm", "take a break"]):
+            from engine.features import start_two_minute_cooldown
+            start_two_minute_cooldown()
+
+        # 13. Explicit Stress Level & Suggestion Query (Triggered ONLY when user queries for it)
+        elif any(k in query for k in ["what is my stress", "what's my stress", "how stressed am i", "check my stress", "am i stressed", "stress level", "stress report", "give suggestion", "give me suggestion", "stress suggestion", "stress advice"]):
+            from engine.features import report_stress_and_suggestions
+            report_stress_and_suggestions()
+
+        # 14. Exam Stress Counseling & Relief
         elif any(k in query for k in ["exam stress", "exam anxiety", "panic", "stressed about", "anxious", "can't focus", "burnout", "study burnout", "tired from study"]):
             from engine.features import get_exam_relief_guidance, trigger_relief_intervention
-            # Trigger visual modal
-            trigger_relief_intervention()
+            trigger_relief_intervention(speak_alert=False)
             guidance = get_exam_relief_guidance(query)
             clean_speech = guidance.get("advice", "").replace("•", "").replace("**", "")
             speak(f"I hear you, sir. Let us reset. {clean_speech}")
 
-        # 13. General Stress & Wellness commands
-        elif any(k in query for k in ["stress", "relief", "breathing", "relax", "fatigue", "tired"]):
-            from engine.features import trigger_relief_intervention, start_stress_monitor, stop_stress_monitor
-            if "start" in query or "enable" in query or "turn on" in query:
-                start_stress_monitor()
-            elif "stop" in query or "disable" in query or "turn off" in query:
+        # 15. Camera Stress Monitor Toggle / General Relief
+        elif any(k in query for k in ["stress monitor", "camera monitor"]):
+            from engine.features import start_stress_monitor, stop_stress_monitor
+            if any(w in query for w in ["stop", "disable", "turn off"]):
                 stop_stress_monitor()
             else:
-                trigger_relief_intervention()
+                start_stress_monitor()
 
-        # 14. Conversational Chatbot (Gemini + Local Academic Mentor)
+        elif any(k in query for k in ["relief", "breathing", "relax"]):
+            from engine.features import start_two_minute_cooldown
+            start_two_minute_cooldown()
+
+        # 16. Conversational Chatbot (Gemini + Local Academic Mentor)
         else:
             from engine.features import chatBot
             chatBot(query)

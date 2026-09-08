@@ -141,18 +141,8 @@ class StressHUDManager {
             }
 
             $("#stressAlertBanner").removeClass("d-none");
-            $("#stressAlertText").text(`Elevated stress detected (${score}% > 40%). Auto relief active.`);
-
-            // Automatically open Relief Center modal if stress is > 40% (with 60-second cooldown)
-            const now = Date.now();
-            if ((now - this.lastAutoHelpTime > 60000) && !$('#reliefModal').hasClass('show')) {
-                this.lastAutoHelpTime = now;
-                console.log(`[Auto Stress Help]: Stress is ${score}% (> 40%). Launching Relief Modal...`);
-                $('#reliefModal').modal('show');
-                if (typeof eel !== 'undefined' && eel.trigger_relief_intervention) {
-                    eel.trigger_relief_intervention();
-                }
-            }
+            $("#stressAlertText").text(`Elevated stress detected (${score}%). Ask Jarvis for relief.`);
+            // Passive monitoring: Modal and speech alerts are triggered only when user requests them.
         } else if (score > 25) {
             color = "#00e5ff"; // Cyan
             badgeClass = "badge bg-info text-dark";
@@ -216,6 +206,7 @@ class BoxBreathingEngine {
     bindEvents() {
         $("#startBreathingBtn").click(() => this.toggle());
         $("#resetBreathingBtn").click(() => this.reset());
+        $("#hudCooldownBtn, #quickReliefAlertBtn, #quick2mCalmBtn").click(() => this.startTwoMinuteCoolDown());
     }
 
     initAudio() {
@@ -317,6 +308,47 @@ class BoxBreathingEngine {
                     $("#completedCyclesCount").text(this.completedCycles);
                 }
                 this.runStep();
+            }
+        }, 1000);
+    }
+
+    startTwoMinuteCoolDown() {
+        // Open Relief Modal on breathing tab
+        $('#reliefModal').modal('show');
+        $('#breathing-tab').tab('show');
+
+        this.reset();
+        this.isTwoMinMode = true;
+        this.twoMinRemaining = 120; // 2-minute countdown
+
+        // Start soothing rain audio if available
+        if (typeof ambientSound !== 'undefined' && ambientSound) {
+            const btn = $('.ambient-toggle[data-sound="rain"]');
+            if (!ambientSound.activeSounds.rain) {
+                ambientSound.toggleSound("rain", btn);
+            }
+        }
+
+        $("#breathingInstruction").html('<span class="text-warning fw-bold"><i class="bi bi-stopwatch-fill me-1"></i>2-Minute Cool Down Active:</span> Inhale 4s, Hold 4s, Exhale 4s, Hold 4s. Release all academic tension.');
+        $("#startBreathingBtn").html('<i class="bi bi-stopwatch-fill me-1"></i>Cool Down (2:00)');
+        this.start();
+
+        clearInterval(this.twoMinTimer);
+        this.twoMinTimer = setInterval(() => {
+            if (!this.isRunning) return;
+            this.twoMinRemaining--;
+            const mins = Math.floor(this.twoMinRemaining / 60);
+            const secs = this.twoMinRemaining % 60;
+            const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+            $("#startBreathingBtn").html(`<i class="bi bi-stopwatch-fill me-1"></i>Cool Down (${timeStr})`);
+
+            if (this.twoMinRemaining <= 0) {
+                clearInterval(this.twoMinTimer);
+                this.isTwoMinMode = false;
+                this.pause();
+                this.playChime(528);
+                $("#breathingInstruction").html('<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>2-Minute Cool Down Complete!</span> Your stress index is lowered and your mind is refreshed.');
+                $("#startBreathingBtn").html('<i class="bi bi-play-fill"></i> Start Breathing');
             }
         }, 1000);
     }
@@ -653,5 +685,20 @@ $(document).ready(function () {
     boxBreathing = new BoxBreathingEngine();
     ambientSound = new AmbientSoundGenerator();
     examStress = new ExamStressManager();
+
+    window.startTwoMinuteCoolDown = function () {
+        if (boxBreathing) {
+            boxBreathing.startTwoMinuteCoolDown();
+        }
+    };
+
+    window.openReliefCenter = function () {
+        $('#reliefModal').modal('show');
+    };
+
+    if (typeof eel !== 'undefined') {
+        eel.expose(window.startTwoMinuteCoolDown, 'ui_start_two_minute_cooldown');
+        eel.expose(window.openReliefCenter, 'ui_open_relief_center');
+    }
 });
 
