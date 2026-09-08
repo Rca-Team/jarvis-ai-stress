@@ -72,15 +72,20 @@ def get_gemini_response(prompt, conversation_history=None):
                     contents.append(types.Content(role=role, parts=[types.Part.from_text(text=str(msg))]))
         contents.append(types.Content(role="user", parts=[types.Part.from_text(text=prompt)]))
         
+        # Check local quick response first
+        from engine.features import local_quick_response
+        local_reply = local_quick_response(prompt)
+        if local_reply:
+            return local_reply
+
         response = None
         working_models = [
-            'gemini-flash-lite-latest',
-            'gemini-3-flash-preview',
-            'gemini-3.1-flash-lite',
-            'gemini-3.5-flash-lite',
-            'gemini-flash-latest',
-            'gemini-pro-latest'
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
         ]
+        leaked_key = False
         for model_name in working_models:
             try:
                 response = client.models.generate_content(
@@ -89,15 +94,21 @@ def get_gemini_response(prompt, conversation_history=None):
                 )
                 if response and response.text:
                     break
-            except Exception:
+            except Exception as m_err:
+                err_text = str(m_err).lower()
+                if 'leaked' in err_text or 'permission_denied' in err_text or '403' in err_text:
+                    leaked_key = True
+                    break
                 continue
                 
         if response and response.text:
             return response.text.strip()
-        return "I am at your service, sir. All systems are operational."
+        if leaked_key:
+            return "Notice: Your Gemini API key was reported as leaked or expired by Google. Please update GOOGLE_API_KEY in your .env file."
+        return "I heard you, sir. How else may I assist you?"
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        return "I am at your service, sir. I have processed your request."
+        return "I am at your service, sir. Please let me know how I can help."
 
 @app.route('/')
 def index():

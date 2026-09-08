@@ -4,12 +4,37 @@ import time
 
 
 def extract_yt_term(command):
-    # Define a regular expression pattern to capture the song name
-    pattern = r'play\s+(.*?)\s+on\s+youtube'
-    # Use re.search to find the match in the command
-    match = re.search(pattern, command, re.IGNORECASE)
-    # If a match is found, return the extracted song name; otherwise, return empty string
-    return match.group(1) if match else ""
+    cmd = str(command).strip()
+    # Pattern 1: play <term> on youtube
+    m = re.search(r'play\s+(.*?)\s+on\s+youtube', cmd, re.IGNORECASE)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    
+    # Pattern 2: search youtube for <term> / search on youtube <term>
+    m = re.search(r'(?:search|find)\s+(?:on\s+)?youtube\s+(?:for\s+)?(.*)', cmd, re.IGNORECASE)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+        
+    # Pattern 3: <term> on youtube
+    m = re.search(r'(.*?)\s+on\s+youtube', cmd, re.IGNORECASE)
+    if m and m.group(1).strip():
+        term = m.group(1).strip()
+        term = re.sub(r'^(?:play|search|find|open)\s+', '', term, flags=re.IGNORECASE).strip()
+        if term:
+            return term
+
+    # Pattern 4: play <term> (e.g. "play believer")
+    m = re.search(r'^play\s+(.*)', cmd, re.IGNORECASE)
+    if m and m.group(1).strip():
+        term = m.group(1).strip()
+        term = re.sub(r'\s+on\s+youtube$', '', term, flags=re.IGNORECASE).strip()
+        if term:
+            return term
+
+    # Fallback: remove common noise words
+    cleaned = re.sub(r'\b(play|on youtube|youtube|jarvis|search|video|song)\b', '', cmd, flags=re.IGNORECASE).strip()
+    return cleaned if cleaned else cmd
+
 
 
 def remove_words(input_string, words_to_remove):

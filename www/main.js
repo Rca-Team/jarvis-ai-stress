@@ -18,31 +18,26 @@ $(document).ready(function () {
         }
     }
 
-    // Enter / Skip Start screen button
-    $("#skipStartBtn").click(function () {
-        $("#Start").attr("hidden", true);
-        $("#Oval").removeClass("animate__animated animate__zoomIn");
-        $("#Oval").addClass("animate__animated animate__fadeIn");
-        $("#Oval").attr("hidden", false);
-    });
-
-    // Auto-transition to dashboard if running in web mode or if 1.5s passes
-    if (typeof eel === 'undefined' || !eel.init || typeof eel.init !== 'function') {
-        setTimeout(function () {
-            $("#Start").attr("hidden", true);
-            $("#Oval").addClass("animate__animated animate__fadeIn");
-            $("#Oval").attr("hidden", false);
-        }, 1200);
-    } else {
-        // In desktop mode, safety fallback if face auth is slow
-        setTimeout(function () {
-            if ($("#Start").is(":visible") && !$("#Start").attr("hidden")) {
-                $("#Start").attr("hidden", true);
-                $("#Oval").addClass("animate__animated animate__fadeIn");
-                $("#Oval").attr("hidden", false);
+    // Retry Face Authentication Button handler
+    $("#retryAuthBtn").click(function () {
+        $(this).attr("hidden", true);
+        if (typeof resetToAuth === 'function') {
+            resetToAuth();
+        }
+        if (typeof eel !== 'undefined' && typeof eel.retry_auth === 'function') {
+            try {
+                eel.retry_auth()();
+            } catch (err) {
+                console.warn("Retry auth error:", err);
             }
-        }, 4500);
-    }
+        } else if (typeof eel !== 'undefined' && typeof eel.init === 'function') {
+            try {
+                eel.init()();
+            } catch (err) {
+                console.warn("Init retry error:", err);
+            }
+        }
+    });
 
     // Load persisted chat history on startup
     if (typeof loadChatHistory === 'function') {

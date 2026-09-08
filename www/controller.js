@@ -70,6 +70,7 @@ $(document).ready(function () {
         $("#Start").attr("hidden", true);
 
         setTimeout(function () {
+            $("#Oval").removeClass("animate__animated animate__zoomIn animate__fadeIn");
             $("#Oval").addClass("animate__animated animate__zoomIn");
             $("#Oval").attr("hidden", false);
             // Refresh and activate Stress Monitor post-authentication
@@ -77,6 +78,32 @@ $(document).ready(function () {
                 stressHUD.fetchStatus();
             }
         }, 1000);
+    }
+
+    // Face Auth Failed handler
+    function faceAuthFailed() {
+        console.warn("[Face Auth]: Access Denied - Face Authentication Failed");
+        $("#Loader").attr("hidden", true);
+        $("#FaceAuth").attr("hidden", true);
+        $("#FaceAuthSuccess").attr("hidden", true);
+        $("#HelloGreet").attr("hidden", true);
+        $("#FaceAuthFail").attr("hidden", false);
+        $("#WishMessage").text("Access Denied: Face Authentication Failed");
+        $("#retryAuthBtn").attr("hidden", false);
+        $("#skipStartBtn").attr("hidden", true);
+    }
+
+    // Reset UI to attempt face authentication again
+    function resetToAuth() {
+        $("#FaceAuthFail").attr("hidden", true);
+        $("#FaceAuthSuccess").attr("hidden", true);
+        $("#HelloGreet").attr("hidden", true);
+        $("#Loader").attr("hidden", true);
+        $("#FaceAuth").attr("hidden", false);
+        $("#WishMessage").text("Ready for Face Authentication...");
+        $("#retryAuthBtn").attr("hidden", true);
+    }
+
     // Update UI to active Siri wave listening mode
     function showListeningWave() {
         $("#Oval").attr("hidden", true);
@@ -105,6 +132,8 @@ $(document).ready(function () {
     window.hideFaceAuth = hideFaceAuth;
     window.hideFaceAuthSuccess = hideFaceAuthSuccess;
     window.hideStart = hideStart;
+    window.faceAuthFailed = faceAuthFailed;
+    window.resetToAuth = resetToAuth;
     window.showListeningWave = showListeningWave;
     window.startListening = startListening;
 
@@ -119,6 +148,8 @@ $(document).ready(function () {
             eel.expose(hideFaceAuth);
             eel.expose(hideFaceAuthSuccess);
             eel.expose(hideStart);
+            eel.expose(faceAuthFailed);
+            eel.expose(resetToAuth);
             eel.expose(showListeningWave);
             eel.expose(startListening);
         } catch (e) {

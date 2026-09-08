@@ -132,7 +132,11 @@ COMMON_WINDOWS_APPS = {
 }
 
 def openCommand(query):
-    query_clean = query.replace(ASSISTANT_NAME, "").replace("open", "").strip().lower()
+    import re
+    # Clean leading noise words: "please", "can you", "jarvis", "open", "launch", "start", "the"
+    query_clean = query.lower().strip()
+    query_clean = query_clean.replace(ASSISTANT_NAME.lower(), "").strip()
+    query_clean = re.sub(r'^(?:please\s+|can\s+you\s+)?(?:open|launch|start)\s+(?:the\s+)?', '', query_clean).strip()
     if not query_clean:
         return
 
@@ -512,13 +516,68 @@ def get_genai_client():
         return None
     return genai.Client(api_key=primary_key)
 
+def local_quick_response(query):
+    """Provide immediate, accurate local responses for standard questions without API latency."""
+    q = query.lower().strip()
+
+    # Greetings
+    if q in ["hello", "hi", "hey", "hey there", "hello jarvis", "hi jarvis", "hey jarvis"]:
+        return "Hello, sir! How can I assist you today?"
+    if "good morning" in q:
+        return "Good morning, sir. All systems are operational and ready."
+    if "good evening" in q:
+        return "Good evening, sir. How was your day? I am at your service."
+    if "good afternoon" in q:
+        return "Good afternoon, sir. How can I help you right now?"
+
+    # Identity & Creator
+    if any(k in q for k in ["who are you", "what is your name", "what's your name"]):
+        return "I am Jarvis, your personal AI desktop assistant and stress monitoring companion."
+    if any(k in q for k in ["who made you", "who created you", "who built you"]):
+        return "I was created and engineered by my developer team to serve as your intelligent desktop copilot."
+
+    # Well-being & Status
+    if any(k in q for k in ["how are you", "how are you doing", "how's it going", "what's up"]):
+        return "I am operating at 100% capacity, sir. Biometrics and system diagnostics are completely normal."
+
+    # Capabilities
+    if any(k in q for k in ["what can you do", "your capabilities", "help me", "what are your features"]):
+        return "I can open Windows apps and websites, play songs and videos on YouTube, send messages, report the time and date, monitor your stress levels through computer vision, and converse with you."
+
+    # Appreciation
+    if any(k in q for k in ["thank you", "thanks", "well done", "good job", "great job"]):
+        return "You are very welcome, sir. It is always my pleasure to assist."
+
+    # Math / Calculation queries
+    if any(op in q for op in ["plus", "minus", "times", "multiplied by", "divided by"]) or ("what is " in q and any(c.isdigit() for c in q)):
+        try:
+            import re
+            math_expr = q.replace("what is", "").replace("calculate", "").replace("solve", "").strip()
+            math_expr = math_expr.replace("plus", "+").replace("minus", "-").replace("multiplied by", "*").replace("times", "*").replace("divided by", "/")
+            math_expr = re.sub(r'[^0-9\+\-\*\/\.\(\) ]', '', math_expr).strip()
+            if math_expr and any(c.isdigit() for c in math_expr):
+                result = eval(math_expr, {"__builtins__": None}, {})
+                return f"The answer is {result}, sir."
+        except Exception:
+            pass
+
+    return None
+
 def chatBot(query):
     try:
         user_input = query.strip()
         # Save user query to history
         add_chat_history("user", user_input)
         
-        # Retrieve recent conversation turns for context
+        # 1. Check local quick response first (0ms latency, always accurate)
+        local_reply = local_quick_response(user_input)
+        if local_reply:
+            print(f"[Jarvis Local AI]: {local_reply}")
+            add_chat_history("assistant", local_reply)
+            speak(local_reply)
+            return local_reply
+
+        # 2. Retrieve recent conversation turns for context
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("SELECT sender, message FROM chat_history ORDER BY id DESC LIMIT 12")
@@ -526,7 +585,12 @@ def chatBot(query):
         conn.close()
         
         client = get_genai_client()
-        
+        if not client:
+            no_key_msg = "Gemini API key is not configured. Please add a valid GOOGLE_API_KEY to your .env file."
+            add_chat_history("assistant", no_key_msg)
+            speak(no_key_msg)
+            return no_key_msg
+
         # Build contents from history
         contents = []
         for row in recent_rows[:-1]:
@@ -536,13 +600,15 @@ def chatBot(query):
         
         response_obj = None
         working_models = [
-            'gemini-flash-lite-latest',
-            'gemini-3-flash-preview',
-            'gemini-3.1-flash-lite',
-            'gemini-3.5-flash-lite',
-            'gemini-flash-latest',
-            'gemini-pro-latest'
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
         ]
+        
+        leaked_key_error = False
+        model_errors = []
+
         for model_name in working_models:
             try:
                 response_obj = client.models.generate_content(
@@ -552,15 +618,23 @@ def chatBot(query):
                 if response_obj and response_obj.text:
                     break
             except Exception as model_err:
+                err_str = str(model_err)
+                model_errors.append(err_str)
+                if "leaked" in err_str.lower() or "403" in err_str or "permission_denied" in err_str.lower():
+                    leaked_key_error = True
+                    print(f"[Gemini Key Revoked]: {err_str}")
+                    break
                 print(f"Model {model_name} attempt: {model_err}")
                 continue
                 
         if response_obj and response_obj.text:
             response = response_obj.text.strip()
+        elif leaked_key_error:
+            response = "Notice: Your Gemini API key was reported as leaked or expired by Google. Please update GOOGLE_API_KEY in your .env file to enable generative AI responses."
         else:
-            response = "I am at your service, sir. All systems are operational."
+            response = "I heard you, sir. How else may I assist your workflow?"
             
-        print("Gemini response:", response)
+        print("Jarvis response:", response)
         
         # Save assistant reply to history
         add_chat_history("assistant", response)
@@ -570,7 +644,7 @@ def chatBot(query):
         return response
     except Exception as e:
         print(f"Error in chatBot: {e}")
-        fallback_msg = "I am at your service, sir. I have processed your request."
+        fallback_msg = "I am at your service, sir. Please let me know how I can help."
         add_chat_history("assistant", fallback_msg)
         speak(fallback_msg)
         return fallback_msg

@@ -70,6 +70,12 @@ def speak(text):
 
 
 def takecommand():
+    # Wait for TTS to finish speaking so the microphone doesn't capture Jarvis's own voice
+    wait_count = 0
+    while _tts_lock.locked() and wait_count < 30:
+        time.sleep(0.1)
+        wait_count += 1
+
     r = sr.Recognizer()
     try:
         with sr.Microphone() as source:
@@ -89,10 +95,12 @@ def takecommand():
                 except Exception:
                     pass
 
-            r.pause_threshold = 0.5
-            r.energy_threshold = 280
-            r.adjust_for_ambient_noise(source, duration=0.3)
-            audio = r.listen(source, phrase_time_limit=7, timeout=5)
+            # Improved thresholds to prevent cutting words off mid-speech
+            r.pause_threshold = 0.8
+            r.non_speaking_duration = 0.5
+            r.energy_threshold = 300
+            r.adjust_for_ambient_noise(source, duration=0.4)
+            audio = r.listen(source, phrase_time_limit=8, timeout=6)
     except Exception as mic_err:
         print(f"Microphone listen error: {mic_err}")
         return ""
@@ -123,7 +131,7 @@ def takecommand():
                 eel.DisplayMessage(query)
             except Exception:
                 pass
-        return query.lower()
+        return query.strip().lower()
     except Exception as e:
         print(f"Recognition error / no speech: {e}")
         return ""
@@ -151,7 +159,7 @@ def allCommands(message=1):
             except Exception:
                 pass
     else:
-        query = str(message).strip()
+        query = str(message).strip().lower()
         if not query:
             try:
                 eel.ShowHood()()
@@ -169,13 +177,37 @@ def allCommands(message=1):
             except Exception:
                 pass
 
+    # Clean leading wake words (e.g. "hey jarvis what time is it" -> "what time is it")
+    wake_words = ["hey jarvis", "hi jarvis", "hello jarvis", "ok jarvis", "jarvis"]
+    for w in wake_words:
+        if query.startswith(w):
+            query = query[len(w):].strip()
+            break
+
     try:
-        if "open" in query:
-            from engine.features import openCommand
-            openCommand(query)
-        elif "on youtube" in query:
+        # 1. YouTube & Music playback intent
+        if ("play" in query and "youtube" in query) or query.startswith("play ") or "on youtube" in query:
             from engine.features import PlayYoutube
             PlayYoutube(query)
+
+        # 2. Time query intent
+        elif any(phrase in query for phrase in ["what time", "current time", "tell me the time", "what's the time", "what is the time"]):
+            from datetime import datetime
+            time_now = datetime.now().strftime("%I:%M %p")
+            speak(f"The current time is {time_now}, sir.")
+
+        # 3. Date / Day query intent
+        elif any(phrase in query for phrase in ["what date", "current date", "today's date", "what is the date", "which day is today", "what day is it"]):
+            from datetime import datetime
+            date_now = datetime.now().strftime("%A, %B %d, %Y")
+            speak(f"Today is {date_now}, sir.")
+
+        # 4. Open applications or URLs
+        elif "open" in query or "launch" in query:
+            from engine.features import openCommand
+            openCommand(query)
+
+        # 5. Contacts & Messaging
         elif "send message" in query or "phone call" in query or "video call" in query:
             from engine.features import findContact, whatsApp, makeCall, sendMessage
             contact_no, name = findContact(query)
@@ -196,7 +228,11 @@ def allCommands(message=1):
                     speak("What message would you like to send?")
                     msg_text = takecommand()
                     whatsApp(contact_no, msg_text, flag, name)
-        elif "stress" in query or "relief" in query or "breathing" in query or "relax" in query:
+            else:
+                speak("I could not find that contact in your database, sir.")
+
+        # 6. Stress & Wellness commands
+        elif any(k in query for k in ["stress", "relief", "breathing", "relax", "fatigue", "tired"]):
             from engine.features import trigger_relief_intervention, start_stress_monitor, stop_stress_monitor
             if "start" in query or "enable" in query or "turn on" in query:
                 start_stress_monitor()
@@ -204,9 +240,12 @@ def allCommands(message=1):
                 stop_stress_monitor()
             else:
                 trigger_relief_intervention()
+
+        # 7. Conversational Chatbot
         else:
             from engine.features import chatBot
             chatBot(query)
+
     except Exception as e:
         print(f"Command error: {e}")
         speak("I encountered an issue processing that command, sir.")
